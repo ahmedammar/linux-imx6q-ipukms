@@ -215,4 +215,7 @@ void ipu_cpmem_exit(struct ipu_soc *ipu);
 int ipu_ic_init(struct ipu_soc *ipu, struct device *dev, unsigned long base);
 void ipu_ic_exit(struct ipu_soc *ipu);
 
+int ipu_capture_init(struct ipu_soc *ipu, struct device *dev, unsigned long csi1_base,
+		unsigned long csi2_base, unsigned long smfc_base);
+void ipu_capture_exit(struct ipu_soc *ipu);
 #endif				/* __IPU_PRV_H__ */

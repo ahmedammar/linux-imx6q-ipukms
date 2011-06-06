@@ -430,7 +430,7 @@ struct v4l2_pix_format {
 #define V4L2_PIX_FMT_KONICA420  v4l2_fourcc('K', 'O', 'N', 'I') /* YUV420 planar in blocks of 256 pixels */
 #define V4L2_PIX_FMT_JPGL	v4l2_fourcc('J', 'P', 'G', 'L') /* JPEG-Lite */
 #define V4L2_PIX_FMT_SE401      v4l2_fourcc('S', '4', '0', '1') /* se401 janggu compressed rgb */
-
+#define V4L2_PIX_FMT_GENERIC    v4l2_fourcc('D', 'A', 'T', 'A') /* generic data (i.MX IPU et al) */
 /*
  *	F O R M A T   E N U M E R A T I O N
  */

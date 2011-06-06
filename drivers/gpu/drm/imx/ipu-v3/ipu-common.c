@@ -689,7 +689,16 @@ static int ipu_submodules_init(struct ipu_soc *ipu,
 	int ret;
 	struct device *dev = &pdev->dev;
 	struct ipu_devtype *devtype = ipu->devtype;
- 
+
+	ret = ipu_capture_init(ipu, dev, ipu_base + devtype->cm_ofs + IPU_CM_CSI0_REG_OFS,
+		ipu_base + devtype->cm_ofs + IPU_CM_CSI1_REG_OFS,
+		ipu_base + devtype->cm_ofs + IPU_CM_SMFC_REG_OFS);
+	if (ret) {
+		unit = "capture";
+		goto err_capture;
+	}
+
+
 	ret = ipu_ic_init(ipu, dev, ipu_base + devtype->tpm_ofs);
 	if (ret) {
 		unit = "ic";
@@ -742,6 +751,8 @@ err_di_1:
 	ipu_di_exit(ipu, 0);
 err_di_0:
 	ipu_ic_exit(ipu);
+err_capture:
+	ipu_dp_exit(ipu);
 err_ic:
 	dev_err(&pdev->dev, "init %s failed with %d\n", unit, ret);
 	return ret;
@@ -851,6 +862,7 @@ static void ipu_submodules_exit(struct ipu_soc *ipu)
 	ipu_di_exit(ipu, 1);
 	ipu_di_exit(ipu, 0);
 	ipu_ic_exit(ipu);
+	ipu_capture_exit(ipu);
 }
 
 static int platform_remove_devices_fn(struct device *dev, void *unused)
@@ -893,7 +905,13 @@ static const struct ipu_platform_reg client_reg[] = {
 			.dma[1] = -EINVAL,
 		},
 		.name = "imx-ipuv3-crtc",
-	},
+	}, {
+		.pdata = {
+			.dma[0] = IPUV3_CHANNEL_CSI0,
+			.dma[1] = -EINVAL,
+		},
+		.name = "imx-ipuv3-camera",
+	}
 };
 
 static int ipu_client_id;

@@ -253,7 +253,7 @@ static int mx5_videobuf_start_streaming(struct vb2_queue *vq, unsigned int count
 	int ret;
 	int xres = icd->user_width, yres = icd->user_height;
 	struct ipu_ch_param *cpmem = ipu_get_cpmem(mx5_cam->ipuch);
-	struct device *dev = icd->dev.parent;
+//	struct device *dev = icd->dev.parent;
 	struct device *dev = icd->parent;
 	u32 csipixfmt = V4L2_PIX_FMT_UYVY;
 
@@ -272,7 +272,7 @@ static int mx5_videobuf_start_streaming(struct vb2_queue *vq, unsigned int count
 	case V4L2_PIX_FMT_UYVY:
 		dev_info(dev, "IPU_PIX_FMT_UYVY\n");
 		ipu_cpmem_set_stride(cpmem, xres * 2);
-		ipu_cpmem_set_yuv_interleaved(cpmem, V4L2_PIX_FMT_UYVY);
+		//ipu_cpmem_set_yuv_interleaved(cpmem, V4L2_PIX_FMT_UYVY);
 		break;
 	case V4L2_PIX_FMT_YUV420:
 		dev_info(dev, "V4L2_PIX_FMT_YUV420\n");
@@ -564,9 +564,9 @@ static int __devinit mx5_camera_probe(struct platform_device *pdev)
 	pdev->dev.dma_mask		= &camera_mask,
 	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32),
 
-	irq = platform_get_irq(pdev, 0);
+	/*irq = platform_get_irq(pdev, 0);
 	if (irq < 0)
-		return -EINVAL;
+		return -EINVAL;*/
 
 	mx5_cam = kzalloc(sizeof(*mx5_cam), GFP_KERNEL);
 	if (!mx5_cam) {
@@ -575,7 +575,7 @@ static int __devinit mx5_camera_probe(struct platform_device *pdev)
 	}
 
 	mx5_cam->pdata = pdev->dev.platform_data;
-	mx5_cam->irq = irq;
+	mx5_cam->irq = ipu->irq_start;
 	mx5_cam->ipu = ipu;
 
 	mx5_cam->ipuch = ipu_idmac_get(ipu, ipu_capture_channel);

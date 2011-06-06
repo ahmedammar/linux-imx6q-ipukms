@@ -167,6 +167,26 @@ void ipu_ic_put(struct ipu_ic *ic);
 int ipu_task_queue_ioctl(struct drm_device *drm, void *data,
 		struct drm_file *file_priv);
 
+/*
+ * IPU CSI functions
+ */
+enum {
+	IPU_CSI_CLK_MODE_GATED_CLK,
+	IPU_CSI_CLK_MODE_NONGATED_CLK,
+	IPU_CSI_CLK_MODE_CCIR656_PROGRESSIVE,
+	IPU_CSI_CLK_MODE_CCIR656_INTERLACED,
+	IPU_CSI_CLK_MODE_CCIR1120_PROGRESSIVE_DDR,
+	IPU_CSI_CLK_MODE_CCIR1120_PROGRESSIVE_SDR,
+	IPU_CSI_CLK_MODE_CCIR1120_INTERLACED_DDR,
+	IPU_CSI_CLK_MODE_CCIR1120_INTERLACED_SDR,
+};
+
+int ipu_csi_init_interface(uint16_t width, uint16_t height, uint32_t pixel_fmt,
+	u32 cfg_param);
+
+int _ipu_csi_init(int channel, int csi, int burstsize, int mipi_id);
+void ipu_csi_set_window_size(uint32_t width, uint32_t height, uint32_t csi);
+void ipu_csi_set_window_pos(uint32_t left, uint32_t top, uint32_t csi);
 
 #define IPU_CPMEM_WORD(word, ofs, size) ((((word) * 160 + (ofs)) << 8) | (size))
 
