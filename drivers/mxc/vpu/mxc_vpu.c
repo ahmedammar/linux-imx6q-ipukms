@@ -19,6 +19,7 @@
  * @ingroup VPU
  */
 
+#include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
@@ -653,7 +654,10 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		iram.end = addr +  vpu_plat->iram_size - 1;
 	}
 
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "vpu_regs");
+	if (pdev->dev.of_node)
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	else
+		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "vpu_regs");
 	if (!res) {
 		printk(KERN_ERR "vpu: unable to get vpu base addr\n");
 		return -ENODEV;
@@ -687,7 +691,10 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		goto err_out_class;
 	}
 
-	vpu_ipi_irq = platform_get_irq_byname(pdev, "vpu_ipi_irq");
+	if (pdev->dev.of_node)
+		vpu_ipi_irq = platform_get_irq(pdev, 0);
+	else
+		vpu_ipi_irq = platform_get_irq_byname(pdev, "vpu_ipi_irq");
 	if (vpu_ipi_irq < 0) {
 		printk(KERN_ERR "vpu: unable to get vpu interrupt\n");
 		err = -ENXIO;
@@ -699,7 +706,10 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		goto err_out_class;
 
 #ifdef MXC_VPU_HAS_JPU
-	vpu_jpu_irq = platform_get_irq_byname(pdev, "vpu_jpu_irq");
+	if (pdev->dev.of_node)
+		vpu_jpu_irq = platform_get_irq(pdev, 1);
+	else
+		vpu_jpu_irq = platform_get_irq_byname(pdev, "vpu_jpu_irq");
 	if (vpu_jpu_irq < 0) {
 		printk(KERN_ERR "vpu: unable to get vpu jpu interrupt\n");
 		err = -ENXIO;
@@ -872,12 +882,18 @@ recover_clk:
 #define	vpu_resume	NULL
 #endif				/* !CONFIG_PM */
 
+static const struct of_device_id mxc_vpu_dt_ids[] = {
+	{ .compatible = "fsl,vpu", },
+	{ /* sentinel */ }
+};
+
 /*! Driver definition
  *
  */
 static struct platform_driver mxcvpu_driver = {
 	.driver = {
 		   .name = "mxc_vpu",
+		   .of_match_table = mxc_vpu_dt_ids,
 		   },
 	.probe = vpu_dev_probe,
 	.remove = vpu_dev_remove,
