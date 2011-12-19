@@ -24,7 +24,6 @@
 
 #include <linux/device.h>
 #include <linux/slab.h>
-#include <mach/viv_gpu.h>
 
 #include "gc_hal_kernel_linux.h"
 #include "gc_hal_driver.h"
@@ -944,49 +943,48 @@ static int __devinit gpu_probe(struct platform_device *pdev)
 {
     int ret = -ENODEV;
     struct resource* res;
-    struct viv_gpu_platform_data *pdata;
 
     gcmkHEADER();
 
-    res = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "irq_3d");
-    if (res)
-        irqLine = res->start;
+    ret = platform_get_irq(pdev, 0);
+    if (ret >= 0)
+        irqLine = ret;
 
-    res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "iobase_3d");
+    res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
     if (res)
     {
         registerMemBase = res->start;
         registerMemSize = res->end - res->start + 1;
     }
 
-    res = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "irq_2d");
-    if (res)
-        irqLine2D = res->start;
+    ret = platform_get_irq(pdev, 1);
+    if (ret >= 0)
+        irqLine2D = ret;
 
-    res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "iobase_2d");
+    res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
     if (res)
     {
         registerMemBase2D = res->start;
         registerMemSize2D = res->end - res->start + 1;
     }
 
-    res = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "irq_vg");
-    if (res)
-        irqLineVG = res->start;
+    ret = platform_get_irq(pdev, 2);
+    if (ret >= 0)
+        irqLineVG = ret;
 
-    res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "iobase_vg");
+    res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
     if (res)
     {
         registerMemBaseVG = res->start;
         registerMemSizeVG = res->end - res->start + 1;
     }
-
+#if 0
     pdata = pdev->dev.platform_data;
     if (pdata) {
         contiguousBase = pdata->reserved_mem_base;
         contiguousSize = pdata->reserved_mem_size;
      }
-
+#endif
     ret = drv_init();
 
     if (!ret)
@@ -1076,6 +1074,10 @@ static int __devinit gpu_resume(struct platform_device *dev)
     return 0;
 }
 
+static const struct of_device_id gpu_viv_dt_ids[] = {
+	{ .compatible = "viv,galcore", },
+	{ /* sentinel */ }
+};
 static struct platform_driver gpu_driver = {
     .probe      = gpu_probe,
     .remove     = gpu_remove,
@@ -1084,6 +1086,7 @@ static struct platform_driver gpu_driver = {
     .resume     = gpu_resume,
 
     .driver     = {
+	.of_match_table = gpu_viv_dt_ids,
         .name   = DEVICE_NAME,
     }
 };
