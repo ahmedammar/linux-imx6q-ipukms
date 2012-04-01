@@ -1169,7 +1169,7 @@ int drm_mode_getresources(struct drm_device *dev, void *data,
 	 * For the non-control nodes we need to limit the list of resources
 	 * by IDs in the group list for this node
 	 */
-	list_for_each(lh, &file_priv->fbs)
+	list_for_each(lh, &dev->mode_config.fb_list)
 		fb_count++;
 
 	mode_group = &file_priv->master->minor->mode_group;
@@ -1200,7 +1200,7 @@ int drm_mode_getresources(struct drm_device *dev, void *data,
 	if (card_res->count_fbs >= fb_count) {
 		copied = 0;
 		fb_id = (uint32_t __user *)(unsigned long)card_res->fb_id_ptr;
-		list_for_each_entry(fb, &file_priv->fbs, filp_head) {
+		list_for_each_entry(fb, &dev->mode_config.fb_list, head) {
 			if (put_user(fb->base.id, fb_id + copied)) {
 				ret = -EFAULT;
 				goto out;
