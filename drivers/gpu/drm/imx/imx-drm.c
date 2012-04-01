@@ -256,8 +256,8 @@ static int ipu_fb_set_par(struct drm_crtc *crtc,
 
 	ipu_channel_set_resolution(ipu_crtc->ch, mode->hdisplay, mode->vdisplay);
 	ipu_channel_set_stride(ipu_crtc->ch, fb->pitch);
-	ipu_channel_set_buffer(ipu_crtc->ch, 1, phys);
-	ipu_channel_set_buffer(ipu_crtc->ch, 0, phys + fb->width*fb->height*4); /* FIXME */
+	ipu_channel_set_buffer(ipu_crtc->ch, 0, phys);
+	ipu_channel_set_buffer(ipu_crtc->ch, 1, phys + fb->width*fb->height*4); /* FIXME */
 
 	ipu_channel_set_format_rgb(ipu_crtc->ch, &def_rgb_32);
 	ipu_channel_set_high_priority(ipu_crtc->ch);
@@ -334,7 +334,7 @@ static int ipu_ipufb_create(struct drm_fb_helper *helper,
 	mode_cmd.pitch = ALIGN(mode_cmd.width * ((mode_cmd.bpp + 1) / 8), 64);
 	mode_cmd.depth = sizes->surface_depth;
 
-	size = mode_cmd.pitch * mode_cmd.height * 2; /* FIXME */
+	size = mode_cmd.pitch * mode_cmd.height * 3; /* FIXME */
 	size = ALIGN(size, PAGE_SIZE);
 
 	mutex_lock(&drm->struct_mutex);
@@ -543,8 +543,8 @@ static int ipu_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 	phys += y * fb->pitch;
 
 	ipu_channel_set_stride(ipu_crtc->ch, fb->pitch);
-	ipu_channel_set_buffer(ipu_crtc->ch, 1, phys);
-	ipu_channel_set_buffer(ipu_crtc->ch, 0, phys + fb->width*fb->height*4); /* FIXME */
+	ipu_channel_set_buffer(ipu_crtc->ch, 0, phys);
+	ipu_channel_set_buffer(ipu_crtc->ch, 1, phys + fb->width*fb->height*4); /* FIXME */
 
 	return 0;
 }
