@@ -17,6 +17,7 @@
 
 struct ipu_soc;
 
+#include <drm/drmP.h>
 #include <linux/types.h>
 #include <linux/device.h>
 #include <linux/clk.h>
@@ -171,7 +172,9 @@ struct ipu_soc {
 	struct mutex		channel_lock;
 
 	void __iomem		*cm_reg;
+	void __iomem		*ic_reg;
 	void __iomem		*idmac_reg;
+	void __iomem		*tpmem_base;
 	struct ipu_ch_param	*cpmem_base;
 
 	atomic_t		usecount;
@@ -221,5 +224,10 @@ void ipu_put(struct ipu_soc *ipu);
 u32 ipu_cm_read(struct ipu_soc *ipu, unsigned offset);
 void ipu_cm_write(struct ipu_soc *ipu, u32 value, unsigned offset);
 
+u32 ipu_ic_read(struct ipu_soc *ipu, unsigned offset);
+void ipu_ic_write(struct ipu_soc *ipu, u32 value, unsigned offset);
+
+int ipu_task_queue_ioctl(struct drm_device *dev, void *data,
+		struct drm_file *file_priv);
 
 #endif				/* __IPU_PRV_H__ */

@@ -27,8 +27,11 @@
 #include <linux/fb.h>
 #include <linux/clk.h>
 #include <drm/imx-ipu-v3.h>
+#include <drm/imx_ipu_drm.h>
 #include <asm/fb.h>
 #include <drm/drm_encon.h>
+
+#include "ipu-v3/ipu-prv.h"
 
 #define DRIVER_NAME		"i.MX"
 #define DRIVER_DESC		"i.MX IPUv3 Graphics"
@@ -598,8 +601,6 @@ static const struct drm_crtc_funcs ipu_crtc_funcs = {
 
 static void ipu_put_resources(struct drm_device *drm, struct ipu_crtc *ipu_crtc)
 {
-	struct ipu_soc *ipu = dev_get_drvdata(drm->dev->parent);
-
 	if (!IS_ERR(ipu_crtc->pixclk))
 		clk_put(ipu_crtc->pixclk);
 	if (!IS_ERR_OR_NULL(ipu_crtc->ch))
@@ -874,6 +875,7 @@ static void ipu_disable_vblank(struct drm_device *drm, int crtc)
 }
 
 struct drm_ioctl_desc ipu_ioctls[] = {
+	DRM_IOCTL_DEF_DRV(IMX_IPU_QUEUE, ipu_task_queue_ioctl, DRM_AUTH),
 };
 
 static struct drm_driver driver = {

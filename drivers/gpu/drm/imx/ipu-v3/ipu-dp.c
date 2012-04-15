@@ -321,7 +321,7 @@ int ipu_dp_init(struct ipu_soc *ipu, struct device *dev, unsigned long base)
 
 	ipu->dp_priv = priv;
 
-	priv->base = devm_ioremap(dev, base, PAGE_SIZE);
+	priv->base = devm_ioremap(dev, base, SZ_32K);
 	if (!priv->base) {
 		kfree(priv);
 		printk(KERN_CRIT "%s ioremap bases\n", __func__);

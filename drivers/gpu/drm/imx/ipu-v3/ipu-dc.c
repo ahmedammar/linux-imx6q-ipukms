@@ -387,8 +387,8 @@ int ipu_dc_init(struct ipu_soc *ipu, struct device *dev,
 
 	priv->dev = dev;
 	priv->ipu = ipu;
-	priv->dc_reg = devm_ioremap(dev, base, PAGE_SIZE);
-	priv->dc_tmpl_reg = devm_ioremap(dev, template_base, PAGE_SIZE);
+	priv->dc_reg = devm_ioremap(dev, base, SZ_32K);
+	priv->dc_tmpl_reg = devm_ioremap(dev, template_base, SZ_128K);
 	if (!priv->dc_reg || !priv->dc_tmpl_reg)
 	{
 		printk(KERN_CRIT "%s ioremap bases\n", __func__);

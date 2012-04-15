@@ -372,7 +372,7 @@ int ipu_dmfc_init(struct ipu_soc *ipu, struct device *dev, unsigned long base,
 		return -ENOMEM;
 	}
 
-	priv->base = devm_ioremap(dev, base, PAGE_SIZE);
+	priv->base = devm_ioremap(dev, base, SZ_32K);
 	if (!priv->base)
 	{
 		printk(KERN_CRIT "%s ioremap bases\n", __func__);

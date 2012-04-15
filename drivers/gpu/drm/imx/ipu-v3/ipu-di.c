@@ -754,7 +754,7 @@ int ipu_di_init(struct ipu_soc *ipu, struct device *dev, int id,
 	di->module = module;
 	di->id = id;
 	di->ipu_clk = ipu_clk;
-	di->base = devm_ioremap(dev, base, PAGE_SIZE);
+	di->base = devm_ioremap(dev, base, SZ_32K);
 	if (!di->base)
 	{
 		printk(KERN_CRIT "%s ioremap bases\n", __func__);

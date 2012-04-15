@@ -154,9 +154,10 @@ static int ipu_alloc_ch_param(struct ipu_channel *channel)
 static void ipu_free_ch_param(struct ipu_channel *channel)
 {
 	pr_crit("free channel %d parameters\n", channel->num);
-
+#if 0
 	if (channel->param)
 		kfree(channel->param);
+#endif
 }
 
 static void ipu_ch_param_commit(struct ipu_channel *ch)
@@ -331,6 +332,15 @@ void ipu_channel_set_yuv_planar(struct ipu_channel *ch, u32 pixel_format, int st
 		uv_stride = stride / 2;
 		u_offset = stride * height;
 		v_offset = u_offset + (uv_stride * height / 2);
+		ipu_ch_param_set_field(p, IPU_FIELD_NPB, 31);  /* burst size */
+		ipu_ch_param_set_field(p, IPU_FIELD_SLUV, uv_stride - 1);
+		ipu_ch_param_set_field(p, IPU_FIELD_UBO, u_offset / 8);
+		ipu_ch_param_set_field(p, IPU_FIELD_VBO, v_offset / 8);
+	case IPU_PIX_FMT_YVU420P:
+                ipu_ch_param_set_field(p, IPU_FIELD_PFS, 2);   /* pix format */
+		uv_stride = stride / 2;
+		v_offset = stride * height;
+		u_offset = v_offset + (uv_stride * height / 2);
 		ipu_ch_param_set_field(p, IPU_FIELD_NPB, 31);  /* burst size */
 		ipu_ch_param_set_field(p, IPU_FIELD_SLUV, uv_stride - 1);
 		ipu_ch_param_set_field(p, IPU_FIELD_UBO, u_offset / 8);
@@ -884,10 +894,12 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 	spin_lock_init(&ipu->lock);
 	mutex_init(&ipu->channel_lock);
 
-	ipu->cm_reg = devm_ioremap(&pdev->dev, ipu_base + IPU_CM_REG_BASE, PAGE_SIZE);
-	ipu->idmac_reg = devm_ioremap(&pdev->dev, ipu_base + IPU_IDMAC_REG_BASE, PAGE_SIZE);
-	ipu->cpmem_base = devm_ioremap(&pdev->dev, ipu_base + IPU_CPMEM_REG_BASE, PAGE_SIZE);
-	if (!ipu->cm_reg || !ipu->idmac_reg || !ipu->cpmem_base) {
+	ipu->cm_reg = devm_ioremap(&pdev->dev, ipu_base + IPU_CM_REG_BASE, SZ_32K);
+        ipu->ic_reg = devm_ioremap(&pdev->dev, ipu_base + IPU_IC_REG_BASE, SZ_32K);
+	ipu->idmac_reg = devm_ioremap(&pdev->dev, ipu_base + IPU_IDMAC_REG_BASE, SZ_32K);
+	ipu->tpmem_base = devm_ioremap(&pdev->dev, ipu_base + IPU_TPM_REG_BASE, SZ_128K);
+	ipu->cpmem_base = devm_ioremap(&pdev->dev, ipu_base + IPU_CPMEM_REG_BASE, SZ_128K);
+	if (!ipu->cm_reg || !ipu->idmac_reg || !ipu->cpmem_base || !ipu->ic_reg  || !ipu->tpmem_base) {
 		printk(KERN_CRIT "%s ioremap bases\n", __func__);
 		ret = -ENOMEM;
 		goto failed_ioremap;

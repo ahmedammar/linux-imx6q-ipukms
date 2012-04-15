@@ -205,6 +205,9 @@ void ipu_channel_set_resolution(struct ipu_channel *ch, int xres, int yres);
 void ipu_channel_set_stride(struct ipu_channel *ch, int stride);
 void ipu_channel_set_high_priority(struct ipu_channel *ch);
 void ipu_channel_set_format_rgb(struct ipu_channel *ch, struct ipu_rgb *rgb);
+void ipu_channel_set_yuv_planar(struct ipu_channel *ch, u32 pixel_format, int stride,
+	int width, int height);
 void ipu_channel_set_buffer(struct ipu_channel *ch, int bufnum, dma_addr_t buf);
+void ipu_channel_set_burstsize(struct ipu_channel *ch, int burstsize);
 
 #endif
