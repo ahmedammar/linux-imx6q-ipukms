@@ -705,8 +705,12 @@ static void ipu_irq_handle(struct ipu_soc *ipu, const int *regs, int num_regs)
 		status &= ipu_cm_read(ipu, IPU_INT_CTRL(regs[i]));
 
 		irq_base = ipu->irq_start + regs[i] * 32;
-		for_each_set_bit(bit, &status, 32)
+		for_each_set_bit(bit, &status, 32) {
+                        printk("%s: %i\n", __func__, bit);
+                        if(ipu->irq_list[bit].handler)
+                            ipu->irq_list[bit].handler(bit, ipu->irq_list[bit].data);
 			generic_handle_irq(irq_base + bit);
+                }
 	}
 }
 
@@ -1033,7 +1037,7 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 failed_add_clients:
 	ipu_submodules_exit(ipu);
 failed_submodules_init:
-	//ipu_irq_exit(ipu);
+	ipu_irq_exit(ipu);
 out_failed_irq:
 	ipu_put(ipu);
 	clk_put(ipu->clk);
@@ -1052,7 +1056,7 @@ static int __devexit ipu_remove(struct platform_device *pdev)
 
 	platform_device_unregister_children(pdev);
 	ipu_submodules_exit(ipu);
-	//ipu_irq_exit(ipu);
+	ipu_irq_exit(ipu);
 
 	ipu_usecount = atomic_read(&ipu->usecount);
 

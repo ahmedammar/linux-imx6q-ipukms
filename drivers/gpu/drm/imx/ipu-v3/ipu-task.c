@@ -220,9 +220,9 @@ static void _init_csc(struct ipu_soc *ipu, uint8_t ic_task, ipu_color_space_t in
 			base = ipu->tpmem_base + 0x4040 / 4;
 	} else if (ic_task == IC_TASK_POST_PROCESSOR) {*/
 		if (csc_index == 1)
-			base = ipu->tpmem_base + 0x6060;// / 4;
+			base = ipu->tpmem_base + 0x6060;
 		else
-			base = ipu->tpmem_base + 0x6078 / 4;
+			base = ipu->tpmem_base + 0x6078;
 	/*} else {
 		BUG();
 	}*/
@@ -309,8 +309,8 @@ static struct ipu_rgb def_rgb_32 = {
 	.bits_per_pixel = 32,
 };
 
-#define IPUIRQ_2_STATREG(irq)	(IPU_INT_STAT(1) + ((irq)))
-#define IPUIRQ_2_CTRLREG(irq)	(IPU_INT_CTRL(1) + ((irq)))
+#define IPUIRQ_2_STATREG(irq)	(IPU_INT_STAT(1) + ((irq)/32))
+#define IPUIRQ_2_CTRLREG(irq)	(IPU_INT_CTRL(1) + ((irq)/32))
 #define IPUIRQ_2_MASK(irq)	(1UL << ((irq) & 0x1F))
 
 void ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq)
@@ -320,21 +320,16 @@ void ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq)
 
 	spin_lock_irqsave(&ipu->lock, lock_flags);
 
-	//reg = ipu_cm_read(ipu, IPUIRQ_2_CTRLREG(irq));
 	reg = ipu_cm_read(ipu, IPU_INT_CTRL(1));
-	printk("%s: %x\n", __func__, reg);
-	reg |= 0x400000;//IPUIRQ_2_MASK(irq);
-	printk("%s: %x\n", __func__, reg);
-	//ipu_cm_write(ipu, reg, IPUIRQ_2_CTRLREG(irq));
+	reg |= IPUIRQ_2_MASK(irq);
 	ipu_cm_write(ipu, reg, IPU_INT_CTRL(1));
-	printk("%s: %x\n", __func__, reg);
 
 	spin_unlock_irqrestore(&ipu->lock, lock_flags);
 }
 
 int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 		    irqreturn_t(*handler) (int, void *),
-		    uint32_t irq_flags, const char *devname, void *dev_id)
+		    uint32_t irq_flags, const char *devname, void *data)
 {
 	unsigned long lock_flags;
 
@@ -345,19 +340,14 @@ int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 	if (ipu->irq_list[irq].handler != NULL) {
 		dev_err(ipu->dev,
 			"handler already installed on irq %d\n", irq);
-		spin_unlock_irqrestore(&ipu->spin_lock, lock_flags);
+		spin_unlock_irqrestore(&ipu->lock, lock_flags);
 		return -EINVAL;
 	}
-
+#endif
 	ipu->irq_list[irq].handler = handler;
 	ipu->irq_list[irq].flags = irq_flags;
-	ipu->irq_list[irq].dev_id = dev_id;
+	ipu->irq_list[irq].data = data;
 	ipu->irq_list[irq].name = devname;
-#endif
-	/* clear irq stat for previous use */
-	//ipu_cm_write(ipu, IPUIRQ_2_MASK(irq), IPUIRQ_2_STATREG(irq));
-	ipu_cm_write(ipu, 0, IPU_INT_STAT(1));
-	ipu_cm_write(ipu, 0, IPU_INT_CTRL(1));
 
 	spin_unlock_irqrestore(&ipu->lock, lock_flags);
 
@@ -366,10 +356,10 @@ int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 	return 0;
 }
 
-static irqreturn_t task_irq_handler(int irq, void *dev_id)
+static irqreturn_t task_irq_handler(int irq, void *data)
 {
 	printk("%s\n", __func__);
-	struct completion *comp = dev_id;
+	struct completion *comp = data;
 	complete(comp);
 	return IRQ_HANDLED;
 }
@@ -422,8 +412,8 @@ printk("ipu_init_channel_buffer(OUT) -> (w:%x h:%x phys:%x)\n", args->width, arg
 	ipu_channel_set_format_rgb(channel_out, &def_rgb_32);
 	ipu_channel_set_buffer(channel_out, 0, args->phys_out);
 
-	ipu_channel_set_burstsize(channel_in,8);
-	ipu_channel_set_burstsize(channel_out,8);
+	ipu_channel_set_burstsize(channel_in,16);
+	ipu_channel_set_burstsize(channel_out,16);
 
         ipu_idmac_set_double_buffer(channel_in, false);
         ipu_idmac_set_double_buffer(channel_out, false);
@@ -441,8 +431,8 @@ printk("ipu_init_channel_buffer(OUT) -> (w:%x h:%x phys:%x)\n", args->width, arg
 	ipu_ic_idmac_1 &= ~IC_IDMAC_1_CB2_BURST_16;
 	ipu_ic_idmac_1 &= ~IC_IDMAC_1_CB5_BURST_16;
 
-//	ipu_ic_idmac_1 |= IC_IDMAC_1_CB2_BURST_16;
-//	ipu_ic_idmac_1 |= IC_IDMAC_1_CB5_BURST_16;
+	ipu_ic_idmac_1 |= IC_IDMAC_1_CB2_BURST_16;
+	ipu_ic_idmac_1 |= IC_IDMAC_1_CB5_BURST_16;
 
 	ipu_ic_write(ipu, ipu_ic_idmac_1, IC_IDMAC_1);
 	ipu_ic_write(ipu, ipu_ic_idmac_2, IC_IDMAC_2);
@@ -495,7 +485,7 @@ printk("ipu_idmac_select_buffer() ->\n");
 
 //        printk("sleep 2000ms\n");
 //	msleep(1000);
-	wait_for_completion_timeout(&comp, msecs_to_jiffies(1000));
+	wait_for_completion_timeout(&comp, msecs_to_jiffies(100));
 //#if 0
 printk("disable everything");
 	ipu_module_disable(ipu, IPU_CONF_IC_EN);

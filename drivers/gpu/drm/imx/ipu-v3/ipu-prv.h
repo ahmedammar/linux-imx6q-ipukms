@@ -166,6 +166,13 @@ struct ipu_channel {
 struct ipu_dc_priv;
 struct ipu_dmfc_priv;
 
+struct ipu_irq_node {
+	irqreturn_t		(*handler)	(int, void *);	/*!< the ISR */
+	const char		*name;		/*!< device associated with the interrupt */
+	void			*data;		/*!< some unique information for the ISR */
+	__u32			flags;		/*!< not used */
+};
+
 struct ipu_soc {
 	struct device		*dev;
 	spinlock_t		lock;
@@ -185,6 +192,7 @@ struct ipu_soc {
 	int			irq_start;
 	int			irq_sync;
 	int			irq_err;
+	struct ipu_irq_node	irq_list[IPU_IRQ_COUNT];
 
 	struct ipu_dc_priv	*dc_priv;
 	struct ipu_dp_priv	*dp_priv;
