@@ -698,6 +698,7 @@ static void ipu_irq_handle(struct ipu_soc *ipu, const int *regs, int num_regs)
 	unsigned long status;
 	int i, bit, irq_base;
 
+        printk("%s\n", __func__);
 	for (i = 0; i < num_regs; i++) {
 
 		status = ipu_cm_read(ipu, IPU_INT_STAT(regs[i]));
@@ -714,6 +715,7 @@ static void ipu_irq_handler(unsigned int irq, struct irq_desc *desc)
 	struct ipu_soc *ipu = irq_desc_get_handler_data(desc);
 	const int int_reg[] = { 0, 1, 2, 3, 10, 11, 12, 13, 14};
 
+        printk("%s\n", __func__);
 	ipu_irq_handle(ipu, int_reg, ARRAY_SIZE(int_reg));
 }
 
@@ -722,6 +724,7 @@ static void ipu_err_irq_handler(unsigned int irq, struct irq_desc *desc)
 	struct ipu_soc *ipu = irq_desc_get_handler_data(desc);
 	const int int_reg[] = { 4, 5, 8, 9};
 
+        printk("%s\n", __func__);
 	ipu_irq_handle(ipu, int_reg, ARRAY_SIZE(int_reg));
 }
 
@@ -730,6 +733,7 @@ static void ipu_ack_irq(struct irq_data *d)
 	struct ipu_soc *ipu = irq_data_get_irq_chip_data(d);
 	unsigned int irq = d->irq - ipu->irq_start;
 
+        printk("%s\n", __func__);
 	ipu_cm_write(ipu, 1 << (irq % 32), IPU_INT_STAT(irq / 32));
 }
 
@@ -740,6 +744,7 @@ static void ipu_unmask_irq(struct irq_data *d)
 	unsigned long flags;
 	u32 reg;
 
+        printk("%s\n", __func__);
 	spin_lock_irqsave(&ipu->lock, flags);
 	reg = ipu_cm_read(ipu, IPU_INT_CTRL(irq / 32));
 	reg |= 1 << (irq % 32);
@@ -754,6 +759,7 @@ static void ipu_mask_irq(struct irq_data *d)
 	unsigned long flags;
 	u32 reg;
 
+        printk("%s\n", __func__);
 	spin_lock_irqsave(&ipu->lock, flags);
 	reg = ipu_cm_read(ipu, IPU_INT_CTRL(irq / 32));
 	reg &= ~(1 << (irq % 32));
@@ -854,6 +860,7 @@ static void ipu_irq_exit(struct ipu_soc *ipu)
 {
 	int i;
 
+        printk("%d", __func__);
 	irq_set_chained_handler(ipu->irq_err, NULL);
 	irq_set_handler_data(ipu->irq_err, NULL);
 	irq_set_chained_handler(ipu->irq_sync, NULL);
@@ -867,6 +874,67 @@ static void ipu_irq_exit(struct ipu_soc *ipu)
 
 	irq_free_descs(ipu->irq_start, IPU_NUM_IRQS);
 }
+
+#if 0
+static irqreturn_t ipu_irq_handler(int irq, void *desc)
+{
+	struct ipu_soc *ipu = desc;
+	int i;
+	uint32_t line;
+	irqreturn_t result = IRQ_NONE;
+	uint32_t int_stat;
+	const int err_reg[] = { 5, 6, 9, 10, 0 };
+	const int int_reg[] = { 1, 2, 3, 4, 11, 12, 13, 14, 15, 0 };
+	unsigned long lock_flags;
+
+        printk("%s\n", __func__);
+
+	for (i = 0;; i++) {
+		if (err_reg[i] == 0)
+			break;
+
+		spin_lock_irqsave(&ipu->lock, lock_flags);
+
+		int_stat = ipu_cm_read(ipu, IPU_INT_STAT(err_reg[i]));
+		int_stat &= ipu_cm_read(ipu, IPU_INT_CTRL(err_reg[i]));
+		if (int_stat) {
+			ipu_cm_write(ipu, int_stat, IPU_INT_STAT(err_reg[i]));
+			dev_err(ipu->dev,
+				"IPU Error - IPU_INT_STAT_%d = 0x%08X\n",
+				err_reg[i], int_stat);
+			/* Disable interrupts so we only get error once */
+			int_stat =
+			    ipu_cm_read(ipu, IPU_INT_CTRL(err_reg[i])) & ~int_stat;
+			ipu_cm_write(ipu, int_stat, IPU_INT_CTRL(err_reg[i]));
+		}
+
+		spin_unlock_irqrestore(&ipu->lock, lock_flags);
+	}
+
+	for (i = 0;; i++) {
+		if (int_reg[i] == 0)
+			break;
+		spin_lock_irqsave(&ipu->lock, lock_flags);
+		int_stat = ipu_cm_read(ipu, IPU_INT_STAT(int_reg[i]));
+		int_stat &= ipu_cm_read(ipu, IPU_INT_CTRL(int_reg[i]));
+		ipu_cm_write(ipu, int_stat, IPU_INT_STAT(int_reg[i]));
+		spin_unlock_irqrestore(&ipu->lock, lock_flags);
+		while ((line = ffs(int_stat)) != 0) {
+			line--;
+			int_stat &= ~(1UL << line);
+			line += (int_reg[i] - 1) * 32;
+#if 0
+			result |=
+			    ipu->irq_list[line].handler(line,
+						       ipu->irq_list[line].
+						       dev_id);
+#endif
+		}
+	}
+
+	return result;
+}
+#endif
 
 static int __devinit ipu_probe(struct platform_device *pdev)
 {
@@ -924,6 +992,22 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 	if (ret)
 		goto out_failed_irq;
 
+#if 0
+        if (request_irq(ipu->irq_sync, ipu_irq_handler, 0, pdev->name, ipu) != 0) {
+		dev_err(ipu->dev, "request SYNC interrupt failed\n");
+		ret = -EBUSY;
+		goto out_failed_irq;
+	}
+	/* Some platforms have 2 IPU interrupts */
+	if (ipu->irq_err >= 0) {
+		if (request_irq
+		    (ipu->irq_err, ipu_irq_handler, 0, pdev->name, ipu) != 0) {
+			dev_err(ipu->dev, "request ERR interrupt failed\n");
+			ret = -EBUSY;
+			goto out_failed_irq;
+		}
+	}
+#endif
 	ipu_reset(ipu);
 
 	ret = ipu_submodules_init(ipu, pdev, ipu_base, ipu->clk);
@@ -949,7 +1033,7 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 failed_add_clients:
 	ipu_submodules_exit(ipu);
 failed_submodules_init:
-	ipu_irq_exit(ipu);
+	//ipu_irq_exit(ipu);
 out_failed_irq:
 	ipu_put(ipu);
 	clk_put(ipu->clk);
@@ -968,7 +1052,7 @@ static int __devexit ipu_remove(struct platform_device *pdev)
 
 	platform_device_unregister_children(pdev);
 	ipu_submodules_exit(ipu);
-	ipu_irq_exit(ipu);
+	//ipu_irq_exit(ipu);
 
 	ipu_usecount = atomic_read(&ipu->usecount);
 

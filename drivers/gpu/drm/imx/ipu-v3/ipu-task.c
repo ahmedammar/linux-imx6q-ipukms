@@ -309,6 +309,71 @@ static struct ipu_rgb def_rgb_32 = {
 	.bits_per_pixel = 32,
 };
 
+#define IPUIRQ_2_STATREG(irq)	(IPU_INT_STAT(1) + ((irq)))
+#define IPUIRQ_2_CTRLREG(irq)	(IPU_INT_CTRL(1) + ((irq)))
+#define IPUIRQ_2_MASK(irq)	(1UL << ((irq) & 0x1F))
+
+void ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq)
+{
+	uint32_t reg;
+	unsigned long lock_flags;
+
+	spin_lock_irqsave(&ipu->lock, lock_flags);
+
+	//reg = ipu_cm_read(ipu, IPUIRQ_2_CTRLREG(irq));
+	reg = ipu_cm_read(ipu, IPU_INT_CTRL(1));
+	printk("%s: %x\n", __func__, reg);
+	reg |= 0x400000;//IPUIRQ_2_MASK(irq);
+	printk("%s: %x\n", __func__, reg);
+	//ipu_cm_write(ipu, reg, IPUIRQ_2_CTRLREG(irq));
+	ipu_cm_write(ipu, reg, IPU_INT_CTRL(1));
+	printk("%s: %x\n", __func__, reg);
+
+	spin_unlock_irqrestore(&ipu->lock, lock_flags);
+}
+
+int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
+		    irqreturn_t(*handler) (int, void *),
+		    uint32_t irq_flags, const char *devname, void *dev_id)
+{
+	unsigned long lock_flags;
+
+	BUG_ON(irq >= IPU_IRQ_COUNT);
+
+	spin_lock_irqsave(&ipu->lock, lock_flags);
+#if 0
+	if (ipu->irq_list[irq].handler != NULL) {
+		dev_err(ipu->dev,
+			"handler already installed on irq %d\n", irq);
+		spin_unlock_irqrestore(&ipu->spin_lock, lock_flags);
+		return -EINVAL;
+	}
+
+	ipu->irq_list[irq].handler = handler;
+	ipu->irq_list[irq].flags = irq_flags;
+	ipu->irq_list[irq].dev_id = dev_id;
+	ipu->irq_list[irq].name = devname;
+#endif
+	/* clear irq stat for previous use */
+	//ipu_cm_write(ipu, IPUIRQ_2_MASK(irq), IPUIRQ_2_STATREG(irq));
+	ipu_cm_write(ipu, 0, IPU_INT_STAT(1));
+	ipu_cm_write(ipu, 0, IPU_INT_CTRL(1));
+
+	spin_unlock_irqrestore(&ipu->lock, lock_flags);
+
+	ipu_enable_irq(ipu, irq);	/* enable the interrupt */
+
+	return 0;
+}
+
+static irqreturn_t task_irq_handler(int irq, void *dev_id)
+{
+	printk("%s\n", __func__);
+	struct completion *comp = dev_id;
+	complete(comp);
+	return IRQ_HANDLED;
+}
+
 struct ipu_channel *channel_in, *channel_out;
 int ipu_task_queue_ioctl(struct drm_device *drm, void *data,
 		struct drm_file *file_priv)
@@ -321,6 +386,10 @@ int ipu_task_queue_ioctl(struct drm_device *drm, void *data,
 	struct ipu_soc *ipu = dev_get_drvdata(drm->dev->parent);
 	struct ipu_ic_resource *res = &ipu_ic_resources[0];
 
+
+	struct completion comp;
+	init_completion(&comp);
+	ipu_request_irq(ipu, 22, task_irq_handler, 0, NULL, &comp);
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
@@ -425,7 +494,8 @@ printk("ipu_idmac_select_buffer() ->\n");
 //}
 
 //        printk("sleep 2000ms\n");
-	msleep(1000);
+//	msleep(1000);
+	wait_for_completion_timeout(&comp, msecs_to_jiffies(1000));
 //#if 0
 printk("disable everything");
 	ipu_module_disable(ipu, IPU_CONF_IC_EN);

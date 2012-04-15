@@ -101,8 +101,8 @@ struct ipu_soc;
 #define IPU_ALT_CHA_BUF0_RDY(ch)	IPU_CM_REG(0x0278 + 4 * ((ch) / 32))
 #define IPU_ALT_CHA_BUF1_RDY(ch)	IPU_CM_REG(0x0280 + 4 * ((ch) / 32))
 
-#define IPU_INT_CTRL(n)		IPU_CM_REG(0x003C + 4 * (n))
-#define IPU_INT_STAT(n)		IPU_CM_REG(0x0200 + 4 * (n))
+#define IPU_INT_CTRL(n)		IPU_CM_REG(0x003C + (4 * (n - 1)))
+#define IPU_INT_STAT(n)		IPU_CM_REG(0x0200 + (4 * (n - 1)))
 
 #define IPU_DI0_COUNTER_RELEASE			(1 << 24)
 #define IPU_DI1_COUNTER_RELEASE			(1 << 25)
