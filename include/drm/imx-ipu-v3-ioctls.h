@@ -2,7 +2,12 @@
  * Userspace IPU access ioctls
  */
 
+enum drm_imx_task_type {
+	IPU_TASK_CSC,
+};
+
 struct drm_imx_ipu_queue {
+	enum drm_imx_task_type task;
 	unsigned int phys_in;
 	unsigned int phys_out;
 	unsigned int format_in;

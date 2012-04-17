@@ -1,6 +1,6 @@
 #include <drm/drmP.h>
 #include <drm/imx-ipu-v3.h>
-#include <drm/imx_ipu_drm.h>
+#include <drm/imx-ipu-v3-ioctls.h>
 
 #include "ipu-prv.h"
 
@@ -17,7 +17,6 @@
 #define IC_IDMAC_4		IPU_IC_REG(0x0009*4)
 
 enum ipu_ic_conf_registers {
-#if 0
 	IC_CONF_PRPENC_EN	= (1 << 0),
 	IC_CONF_PRPENC_CSC1	= (1 << 1),
 	IC_CONF_PRPENC_ROT_EN	= (1 << 2),
@@ -38,7 +37,7 @@ enum ipu_ic_conf_registers {
 	IC_CONF_KEY_COLOR_EN	= (1 << 29),
 	IC_CONF_RWS_EN		= (1 << 30),
 	IC_CONF_CSI_MEM_WR_EN	= (1 << 31),
-#endif
+#if 0
 	IC_CONF_PRPENC_EN = 0x00000001,
 	IC_CONF_PRPENC_CSC1 = 0x00000002,
 	IC_CONF_PRPENC_ROT_EN = 0x00000004,
@@ -56,7 +55,7 @@ enum ipu_ic_conf_registers {
 	IC_CONF_KEY_COLOR_EN = 0x20000000,
 	IC_CONF_RWS_EN = 0x40000000,
 	IC_CONF_CSI_MEM_WR_EN = 0x80000000,
-
+#endif
 	IC_IDMAC_1_CB0_BURST_16 = 0x00000001,
 	IC_IDMAC_1_CB1_BURST_16 = 0x00000002,
 	IC_IDMAC_1_CB2_BURST_16 = 0x00000004,
@@ -96,7 +95,7 @@ struct ipu_ic_resource {
 };
 
 static struct ipu_ic_resource ipu_ic_resources[] = {
-	{
+	{	// MEM_CSC_MEM
 		.ipu_channel_in = 11,
 		.ipu_channel_out = 22,
 	},
@@ -309,8 +308,6 @@ static struct ipu_rgb def_rgb_32 = {
 	.bits_per_pixel = 32,
 };
 
-#define IPUIRQ_2_STATREG(irq)	(IPU_INT_STAT(1) + ((irq)/32))
-#define IPUIRQ_2_CTRLREG(irq)	(IPU_INT_CTRL(1) + ((irq)/32))
 #define IPUIRQ_2_MASK(irq)	(1UL << ((irq) & 0x1F))
 
 void ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq)
@@ -327,6 +324,32 @@ void ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq)
 	spin_unlock_irqrestore(&ipu->lock, lock_flags);
 }
 
+void ipu_disable_irq(struct ipu_soc *ipu, uint32_t irq)
+{
+	uint32_t reg;
+	unsigned long lock_flags;
+
+	spin_lock_irqsave(&ipu->lock, lock_flags);
+
+	reg = ipu_cm_read(ipu, IPU_INT_CTRL(1));
+	reg &= ~IPUIRQ_2_MASK(irq);
+	ipu_cm_write(ipu, reg, IPU_INT_CTRL(1));
+
+	spin_unlock_irqrestore(&ipu->lock, lock_flags);
+}
+
+void ipu_free_irq(struct ipu_soc *ipu, uint32_t irq, void *data)
+{
+	unsigned long lock_flags;
+
+	ipu_disable_irq(ipu, irq);	/* disable the interrupt */
+
+	spin_lock_irqsave(&ipu->lock, lock_flags);
+	if (ipu->irq_list[irq].data == data)
+		ipu->irq_list[irq].handler = NULL;
+	spin_unlock_irqrestore(&ipu->lock, lock_flags);
+}
+
 int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 		    irqreturn_t(*handler) (int, void *),
 		    uint32_t irq_flags, const char *devname, void *data)
@@ -336,14 +359,14 @@ int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 	BUG_ON(irq >= IPU_IRQ_COUNT);
 
 	spin_lock_irqsave(&ipu->lock, lock_flags);
-#if 0
+
 	if (ipu->irq_list[irq].handler != NULL) {
 		dev_err(ipu->dev,
 			"handler already installed on irq %d\n", irq);
 		spin_unlock_irqrestore(&ipu->lock, lock_flags);
 		return -EINVAL;
 	}
-#endif
+
 	ipu->irq_list[irq].handler = handler;
 	ipu->irq_list[irq].flags = irq_flags;
 	ipu->irq_list[irq].data = data;
@@ -358,55 +381,43 @@ int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 
 static irqreturn_t task_irq_handler(int irq, void *data)
 {
-	printk("%s\n", __func__);
 	struct completion *comp = data;
+
+	printk("%s\n", __func__);
 	complete(comp);
 	return IRQ_HANDLED;
 }
 
-struct ipu_channel *channel_in, *channel_out;
-int ipu_task_queue_ioctl(struct drm_device *drm, void *data,
-		struct drm_file *file_priv)
+int colorspace_conversion_task(struct ipu_soc *ipu, struct drm_imx_ipu_queue *args)
 {
+	struct ipu_ic_resource *res;
+	struct ipu_channel *channel_in, *channel_out;
 	uint32_t ipu_ic_conf, ipu_ic_idmac_1, ipu_ic_idmac_2, ipu_ic_idmac_3;
 	ipu_color_space_t format_in, format_out;
-
-	struct drm_imx_ipu_queue *args = data;
-
-	struct ipu_soc *ipu = dev_get_drvdata(drm->dev->parent);
-	struct ipu_ic_resource *res = &ipu_ic_resources[0];
-
-
 	struct completion comp;
+
 	init_completion(&comp);
+
 	ipu_request_irq(ipu, 22, task_irq_handler, 0, NULL, &comp);
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
-retry:
-//		ipu_init_channel(&params)
+	res = &ipu_ic_resources[0];
 	channel_in = ipu_idmac_get(ipu, res->ipu_channel_in);
 	channel_out = ipu_idmac_get(ipu, res->ipu_channel_out);
 
 	format_in = format_to_colorspace(args->format_in);
 	format_out = format_to_colorspace(args->format_out);
 
-printk("_init_csc ->\n");
 	_init_csc(ipu, 0/*unused*/, format_in, format_out, 1);
 
-
-printk("ipu_init_channel_buffer(IN) -> (w:%x h:%x phys:%x)\n", args->width, args->height, args->phys_in);
-//		ipu_init_channel_buffer(IN)
 	ipu_channel_set_resolution(channel_in, args->width, args->height);
 	ipu_channel_set_stride(channel_in, args->width * bytes_per_pixel(args->format_in));
 	ipu_channel_set_yuv_planar(channel_in, args->format_in,
 		args->width * bytes_per_pixel(args->format_in),
 		args->width, args->height);
-//	ipu_channel_set_format_rgb(channel_in, &def_rgb_32);
 	ipu_channel_set_buffer(channel_in, 0, args->phys_in);
 
-printk("ipu_init_channel_buffer(OUT) -> (w:%x h:%x phys:%x)\n", args->width, args->height, args->phys_out);
-//		ipu_init_channel_buffer(OUT)
 	ipu_channel_set_resolution(channel_out, args->width, args->height);
 	ipu_channel_set_stride(channel_out, args->width * bytes_per_pixel(args->format_out));
 	ipu_channel_set_format_rgb(channel_out, &def_rgb_32);
@@ -417,7 +428,7 @@ printk("ipu_init_channel_buffer(OUT) -> (w:%x h:%x phys:%x)\n", args->width, arg
 
         ipu_idmac_set_double_buffer(channel_in, false);
         ipu_idmac_set_double_buffer(channel_out, false);
-//	_ipu_ic_idma_init
+	
 	ipu_ic_idmac_1 = ipu_ic_read(ipu, IC_IDMAC_1);
 	ipu_ic_idmac_2 = ipu_ic_read(ipu, IC_IDMAC_2);
 	ipu_ic_idmac_3 = ipu_ic_read(ipu, IC_IDMAC_3);
@@ -428,8 +439,8 @@ printk("ipu_init_channel_buffer(OUT) -> (w:%x h:%x phys:%x)\n", args->width, arg
 	ipu_ic_idmac_3 &= ~IC_IDMAC_3_PP_WIDTH_MASK;
 	ipu_ic_idmac_3 |= (args->width- 1)  << IC_IDMAC_3_PP_WIDTH_OFFSET;
 
-	ipu_ic_idmac_1 &= ~IC_IDMAC_1_CB2_BURST_16;
-	ipu_ic_idmac_1 &= ~IC_IDMAC_1_CB5_BURST_16;
+//	ipu_ic_idmac_1 &= ~IC_IDMAC_1_CB2_BURST_16;
+//	ipu_ic_idmac_1 &= ~IC_IDMAC_1_CB5_BURST_16;
 
 	ipu_ic_idmac_1 |= IC_IDMAC_1_CB2_BURST_16;
 	ipu_ic_idmac_1 |= IC_IDMAC_1_CB5_BURST_16;
@@ -437,57 +448,30 @@ printk("ipu_init_channel_buffer(OUT) -> (w:%x h:%x phys:%x)\n", args->width, arg
 	ipu_ic_write(ipu, ipu_ic_idmac_1, IC_IDMAC_1);
 	ipu_ic_write(ipu, ipu_ic_idmac_2, IC_IDMAC_2);
 	ipu_ic_write(ipu, ipu_ic_idmac_3, IC_IDMAC_3);
-//#define idma_mask(ch)                   (1 << (ch & 0x1f))
-//	ipu_cm_write(ipu, idma_mask(res->ipu_channel_in), IPU_CHA_CUR_BUF(res->ipu_channel_in));
-//	ipu_cm_write(ipu, idma_mask(res->ipu_channel_out), IPU_CHA_CUR_BUF(res->ipu_channel_out));
 
-//`printk("ipu_channel_set_high_priority() ->\n");
-//	ipu_channel_set_high_priority(channel_in);
-//	ipu_channel_set_high_priority(channel_out);
+	ipu_channel_set_high_priority(channel_in);
+	ipu_channel_set_high_priority(channel_out);
 
-printk("ipu_ic_conf() ->\n");
 	ipu_ic_conf = ipu_ic_read(ipu, IC_CONF);
 	ipu_ic_conf |= IC_CONF_PP_EN;
-//				ipu_ic_write()
 	ipu_ic_conf |= IC_CONF_PP_CSC1;
 	ipu_ic_conf &= ~IC_CONF_PP_CMB;
 	ipu_ic_write(ipu, ipu_ic_conf, IC_CONF);
 
-printk("ipu_idmac_enable_channel() ->\n");
 	ipu_idmac_enable_channel(channel_out);
 	ipu_idmac_enable_channel(channel_in);
 
-//	ipu_enable_channel()
-printk("ipu_module_enable() ->\n");
 	ipu_module_enable(ipu, IPU_CONF_IC_EN);
 
-uint32_t reg = ipu_ic_read(ipu, IC_CONF);
-printk("ipu_ic_conf: %x\n", reg);
-reg = ipu_ic_read(ipu, IC_IDMAC_1);
-printk("ipu_ic_idmac_1: %x\n", reg);
-reg = ipu_ic_read(ipu, IC_IDMAC_2);
-printk("ipu_ic_idmac_2: %x\n", reg);
-reg = ipu_ic_read(ipu, IC_IDMAC_3);
-printk("ipu_ic_idmac_3: %x\n", reg);
-reg = ipu_ic_read(ipu, IC_IDMAC_4);
-printk("ipu_ic_idmac_4: %x\n", reg);
-
-printk("ipu_idmac_select_buffer() ->\n");
-//	ipu_select_buffer(OUT)
-//int i = 100;
-//while (i) {
-//	ipu_select_buffer(IN)
+	printk("ipu_idmac_select_buffer()\n");
 	ipu_idmac_select_buffer(channel_out, 0);
 	ipu_idmac_select_buffer(channel_in, 0);
-//	msleep(10);
-//	i--;
-//}
 
-//        printk("sleep 2000ms\n");
-//	msleep(1000);
 	wait_for_completion_timeout(&comp, msecs_to_jiffies(100));
-//#if 0
-printk("disable everything");
+
+	ipu_free_irq(ipu, 22, &comp);
+
+	printk("disable everything\n");
 	ipu_module_disable(ipu, IPU_CONF_IC_EN);
 
 	ipu_idmac_disable_channel(channel_in);
@@ -501,59 +485,25 @@ printk("disable everything");
 	ipu_idmac_put(channel_in);
 	ipu_idmac_put(channel_out);
 
-
-        //ipu_reset(ipu);
-	//void* x = ioremap(args->phys_out,  args->width*args->height*4);
-	//memset(x, 0, args->width*args->height*4);
-//#endif
 	return 0;
 }
 
+int ipu_task_queue_ioctl(struct drm_device *drm, void *data,
+		struct drm_file *file_priv)
+{
+	int ret = 0;
 
-#if 0
-/* ipu-v3 trace */
-do_task()
-	init_ic()
-		// setup buffer paddr,w,h,stride,fmt,u/v offset
-		ipu_init_channel(&params)
-			MEM_PP_MEM:
-			_ipu_ic_init_pp()
-				ipu_ic_write()
-		ipu_init_channel_buffer(IN)
-		ipu_init_channel_buffer(OUT)
-	ipu_enable_channel()
-	ipu_select_buffer(OUT)
-	ipu_select_buffer(IN)
-	wait_for_completion_timeout()
-	ipu_disable_channel()
-	uninit_ic()
+	struct drm_imx_ipu_queue *args = data;
+	struct ipu_soc *ipu = dev_get_drvdata(drm->dev->parent);
 
-do_task()
-    init_ic()
-        ipu_init_channel()
-            ipu_cm_read(IPU_CONF)
-            _ipu_ic_init_pp()
-                ipu_ic_write(IC_PP_RSC)
-                ic_conf = ipu_ic_read(IC_CONF)
-                _init_csc()
-                ic_conf |= IC_CONF_PP_CSC1
-                ic_conf &= ~IC_CONF_PP_CMB
-                ipu_ic_write(IC_CONF)
-            ipu_cm_write(IPU_CONF)
-        ipu_init_channel_buffer(IN)
-            _ipu_ch_param_init()
-            _ipu_ch_param_set_burst_size()
-            _ipu_ic_idma_init()
-            _ipu_ch_param_set_axi_id()
-           ipu_cm_write(IPU_CHA_DB_MODE_SEL)
-        ipu_init_channel_buffer(OUT)
-    ipu_enable_channel()
-        ipu_cm_read(ipu, IPU_CONF)
-        ipu_conf |= IPU_CONF_IC_EN
-        ipu_idmac_write(ipu, reg | idma_mask(in_dma), IDMAC_CHA_EN(in_dma))
-        ipu_idmac_write(ipu, reg | idma_mask(out_dma), IDMAC_CHA_EN(out_dma))
-        _ipu_ic_enable_task()
-    ipu_select_buffer(OUT)
-    ipu_select_buffer(IN)
+	switch (args->task) {
+		case IPU_TASK_CSC:
+			ret = colorspace_conversion_task(ipu, args);
+			break;
+		default:
+			ret = -ENOIOCTLCMD;
+			break;
+	}
 
-#endif
+	return ret;
+}

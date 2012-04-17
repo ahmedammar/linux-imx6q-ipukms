@@ -27,7 +27,7 @@
 #include <linux/fb.h>
 #include <linux/clk.h>
 #include <drm/imx-ipu-v3.h>
-#include <drm/imx_ipu_drm.h>
+#include <drm/imx-ipu-v3-ioctls.h>
 #include <asm/fb.h>
 #include <drm/drm_encon.h>
 
