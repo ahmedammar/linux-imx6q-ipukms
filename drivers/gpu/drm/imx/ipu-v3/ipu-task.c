@@ -291,80 +291,9 @@ static struct ipu_rgb def_rgb_32 = {
 	.bits_per_pixel = 32,
 };
 
-#define IPUIRQ_2_MASK(irq)	(1UL << ((irq) & 0x1F))
-
-void ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq)
+static irqreturn_t task_irq_handler(int irq, void *dcond)
 {
-	uint32_t reg;
-	unsigned long lock_flags;
-
-	spin_lock_irqsave(&ipu->lock, lock_flags);
-
-	reg = ipu_cm_read(ipu, IPU_INT_CTRL(1));
-	reg |= IPUIRQ_2_MASK(irq);
-	ipu_cm_write(ipu, reg, IPU_INT_CTRL(1));
-
-	spin_unlock_irqrestore(&ipu->lock, lock_flags);
-}
-
-void ipu_disable_irq(struct ipu_soc *ipu, uint32_t irq)
-{
-	uint32_t reg;
-	unsigned long lock_flags;
-
-	spin_lock_irqsave(&ipu->lock, lock_flags);
-
-	reg = ipu_cm_read(ipu, IPU_INT_CTRL(1));
-	reg &= ~IPUIRQ_2_MASK(irq);
-	ipu_cm_write(ipu, reg, IPU_INT_CTRL(1));
-
-	spin_unlock_irqrestore(&ipu->lock, lock_flags);
-}
-
-void ipu_free_irq(struct ipu_soc *ipu, uint32_t irq, void *data)
-{
-	unsigned long lock_flags;
-
-	ipu_disable_irq(ipu, irq);	/* disable the interrupt */
-
-	spin_lock_irqsave(&ipu->lock, lock_flags);
-	if (ipu->irq_list[irq].data == data)
-		ipu->irq_list[irq].handler = NULL;
-	spin_unlock_irqrestore(&ipu->lock, lock_flags);
-}
-
-int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
-		    irqreturn_t(*handler) (int, void *),
-		    uint32_t irq_flags, const char *devname, void *data)
-{
-	unsigned long lock_flags;
-
-	BUG_ON(irq >= IPU_IRQ_COUNT);
-
-	spin_lock_irqsave(&ipu->lock, lock_flags);
-
-	if (ipu->irq_list[irq].handler != NULL) {
-		dev_err(ipu->dev,
-			"handler already installed on irq %d\n", irq);
-		spin_unlock_irqrestore(&ipu->lock, lock_flags);
-		return -EINVAL;
-	}
-
-	ipu->irq_list[irq].handler = handler;
-	ipu->irq_list[irq].flags = irq_flags;
-	ipu->irq_list[irq].data = data;
-	ipu->irq_list[irq].name = devname;
-
-	spin_unlock_irqrestore(&ipu->lock, lock_flags);
-
-	ipu_enable_irq(ipu, irq);	/* enable the interrupt */
-
-	return 0;
-}
-
-static irqreturn_t task_irq_handler(int irq, void *data)
-{
-	struct completion *comp = data;
+	struct completion *comp = dcond;
 
 	printk("%s\n", __func__);
 	complete(comp);
@@ -378,16 +307,20 @@ int colorspace_conversion_task(struct ipu_soc *ipu, struct drm_imx_ipu_queue *ar
 	uint32_t ipu_ic_conf, ipu_ic_idmac_1, ipu_ic_idmac_2, ipu_ic_idmac_3;
 	ipu_color_space_t format_in, format_out;
 	struct completion comp;
+	int ret = 0;
 
 	init_completion(&comp);
-
-	ipu_request_irq(ipu, 22, task_irq_handler, 0, NULL, &comp);
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	res = &ipu_ic_resources[0];
 	channel_in = ipu_idmac_get(ipu, res->ipu_channel_in);
 	channel_out = ipu_idmac_get(ipu, res->ipu_channel_out);
+
+	ret = request_threaded_irq(ipu->irq_start + channel_out->num, NULL, \
+		task_irq_handler, 0, "task_irq", &comp);
+	if (ret)
+	    goto out;
 
 	format_in = format_to_colorspace(args->format_in);
 	format_out = format_to_colorspace(args->format_out);
@@ -452,9 +385,10 @@ int colorspace_conversion_task(struct ipu_soc *ipu, struct drm_imx_ipu_queue *ar
 
 	wait_for_completion_timeout(&comp, msecs_to_jiffies(100));
 
-	ipu_free_irq(ipu, 22, &comp);
-
 	printk("disable everything\n");
+
+	free_irq(ipu->irq_start + channel_out->num, &comp);
+
 	ipu_module_disable(ipu, IPU_CONF_IC_EN);
 
 	ipu_idmac_disable_channel(channel_in);
@@ -464,11 +398,11 @@ int colorspace_conversion_task(struct ipu_soc *ipu, struct drm_imx_ipu_queue *ar
 	ipu_ic_conf &= ~(IC_CONF_PP_EN | IC_CONF_PP_CSC1 | IC_CONF_PP_CSC2 |
 		 IC_CONF_PP_CMB);
 	ipu_ic_write(ipu, ipu_ic_conf, IC_CONF);
-
+out:
 	ipu_idmac_put(channel_in);
 	ipu_idmac_put(channel_out);
 
-	return 0;
+	return ret;
 }
 
 int ipu_task_queue_ioctl(struct drm_device *drm, void *data,

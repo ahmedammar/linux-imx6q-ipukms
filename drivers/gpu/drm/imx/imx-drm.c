@@ -73,6 +73,7 @@ struct ipu_crtc {
 	struct ipu_dp		*dp;
 	struct dmfc_channel	*dmfc;
 	struct ipu_di		*di;
+	struct ipu_soc		*ipu;
 	int			di_no;
 	int			buf_no;
 	struct clk		*pixclk;
@@ -82,7 +83,7 @@ struct ipu_crtc {
 struct ipu_framebuffer {
 	struct drm_framebuffer	base;
 	void			*virt;
-	dma_addr_t		phys;
+	dma_addr_t		phys[2];
 	size_t			len;
 };
 
@@ -116,7 +117,7 @@ static void ipu_user_framebuffer_destroy(struct drm_framebuffer *fb)
 	struct ipu_framebuffer *ipu_fb = to_ipu_framebuffer(fb);
 	struct drm_device *drm = fb->dev;
 
-	dma_free_writecombine(drm->dev, ipu_fb->len, ipu_fb->virt, ipu_fb->phys);
+	dma_free_writecombine(drm->dev, ipu_fb->len, ipu_fb->virt, ipu_fb->phys[0]);
 
 	drm_framebuffer_cleanup(fb);
 
@@ -164,8 +165,21 @@ static int calc_bandwidth(struct drm_display_mode *mode, unsigned int vref)
 	return mode->hdisplay * mode->vdisplay * vref;
 }
 
-static void ipu_fb_enable(struct ipu_crtc *ipu_crtc)
+irqreturn_t vsync_irq(int irq, void *dcrtc)
+ {
+	struct drm_crtc *crtc = (struct drm_crtc *) dcrtc;
+	struct ipu_crtc *ipu_crtc = to_ipu_crtc(crtc);
+
+	ipu_idmac_select_buffer(ipu_crtc->ch, ipu_crtc->buf_no);
+
+	return IRQ_HANDLED;
+}
+
+static void ipu_fb_enable(struct drm_crtc *crtc)
 {
+	struct ipu_crtc *ipu_crtc = to_ipu_crtc(crtc);
+	struct ipu_soc *ipu = ipu_crtc->ipu;
+
 	if (ipu_crtc->enabled)
 		return;
 
@@ -178,6 +192,7 @@ static void ipu_fb_enable(struct ipu_crtc *ipu_crtc)
 
 	ipu_idmac_set_double_buffer(ipu_crtc->ch, true);
 	ipu_crtc->enabled = 1;
+	request_threaded_irq(ipu->irq_start + ipu_crtc->ch->num, NULL, vsync_irq, 0, "vsync_irq", crtc);
 }
 
 static void ipu_fb_disable(struct ipu_crtc *ipu_crtc)
@@ -202,6 +217,8 @@ static int ipu_fb_set_par(struct drm_crtc *crtc,
 	struct ipu_crtc *ipu_crtc = to_ipu_crtc(crtc);
 	struct drm_device *drm = crtc->dev;
 	struct drm_framebuffer *fb = crtc->fb;
+	struct ipu_framebuffer *ipu_fb = to_ipu_framebuffer(fb);
+
 	int ret;
 	struct ipu_di_signal_cfg sig_cfg = {0};
 	u32 out_pixel_fmt;
@@ -260,7 +277,7 @@ static int ipu_fb_set_par(struct drm_crtc *crtc,
 	ipu_channel_set_resolution(ipu_crtc->ch, mode->hdisplay, mode->vdisplay);
 	ipu_channel_set_stride(ipu_crtc->ch, fb->pitch);
 	ipu_channel_set_buffer(ipu_crtc->ch, 0, phys);
-	ipu_channel_set_buffer(ipu_crtc->ch, 1, phys + fb->width*fb->height*4); /* FIXME */
+	ipu_channel_set_buffer(ipu_crtc->ch, 1, ipu_fb->phys[1]); /* FIXME */
 
 	ipu_channel_set_format_rgb(ipu_crtc->ch, &def_rgb_32);
 	ipu_channel_set_high_priority(ipu_crtc->ch);
@@ -280,7 +297,7 @@ static int ipu_fb_set_par(struct drm_crtc *crtc,
 		return ret;
 	}
 
-	ipu_fb_enable(ipu_crtc);
+	ipu_fb_enable(crtc);
 
 	return ret;
 }
@@ -378,7 +395,7 @@ static int ipu_ipufb_create(struct drm_fb_helper *helper,
 	memset(info->screen_base, 0x80, size);
 
 	ipu_fb->virt = info->screen_base;
-	ipu_fb->phys = info->fix.smem_start;
+	ipu_fb->phys[0] = info->fix.smem_start;
 	ipu_fb->len = size;
 
 	info->fix.smem_len = size;
@@ -426,7 +443,7 @@ static void ipu_ipufb_destroy(struct drm_device *drm)
 
 	drm_framebuffer_cleanup(&ipu_fb->base);
 
-	dma_free_writecombine(drm->dev, ipu_fb->len, ipu_fb->virt, ipu_fb->phys);
+	dma_free_writecombine(drm->dev, ipu_fb->len, ipu_fb->virt, ipu_fb->phys[0]);
 }
 
 static int ipu_fb_find_or_create_single(struct drm_fb_helper *helper,
@@ -522,9 +539,10 @@ static int ipu_crtc_mode_set(struct drm_crtc *crtc,
 
 	ipu_fb = to_ipu_framebuffer(fb);
 
-	phys = ipu_fb->phys;
+	phys = ipu_fb->phys[0];
 	phys += x * 4; /* FIXME */
 	phys += y * fb->pitch;
+	ipu_fb->phys[1] = phys + fb->width*fb->height*4;
 
 	ipu_fb_set_par(crtc, mode, phys);
 
@@ -541,13 +559,14 @@ static int ipu_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 
 	ipu_fb = to_ipu_framebuffer(fb);
 
-	phys = ipu_fb->phys;
+	phys = ipu_fb->phys[0];
 	phys += x * 4; /* FIXME */
 	phys += y * fb->pitch;
+	ipu_fb->phys[1] = phys + fb->width*fb->height*4;
 
 	ipu_channel_set_stride(ipu_crtc->ch, fb->pitch);
 	ipu_channel_set_buffer(ipu_crtc->ch, 0, phys);
-	ipu_channel_set_buffer(ipu_crtc->ch, 1, phys + fb->width*fb->height*4); /* FIXME */
+	ipu_channel_set_buffer(ipu_crtc->ch, 1, ipu_fb->phys[1]); /* FIXME */
 
 	return 0;
 }
@@ -587,9 +606,18 @@ static int ipu_page_flip(struct drm_crtc *crtc,
                          struct drm_pending_vblank_event *event)
 {
 	struct ipu_crtc *ipu_crtc = to_ipu_crtc(crtc);
+	struct ipu_framebuffer *ipu_fb = to_ipu_framebuffer(crtc->fb);
 
-	ipu_idmac_select_buffer(ipu_crtc->ch, ipu_crtc->buf_no);
-	ipu_crtc->buf_no = (++ipu_crtc->buf_no) % 2;
+	/*printk("--> cur_buf: 0x%lx\n", ipu_cm_read(ipu_crtc->ipu, IPU_CHA_CUR_BUF(0)));
+	printk("--> idmac_eof_en: 0x%lx\n", ipu_cm_read(ipu_crtc->ipu, IPU_INT_CTRL(0)));
+	printk("--> idmac_nfb4eof_en: 0x%lx\n", ipu_cm_read(ipu_crtc->ipu, IPU_INT_CTRL(4)));
+	printk("--> dc_fc_en: 0x%lx\n", ipu_cm_read(ipu_crtc->ipu, IPU_INT_CTRL(14)));*/
+	if (event) {
+		ipu_crtc->buf_no = (ipu_fb->phys[0] ==  event->event.user_data) ?  0 : 1;
+		//ipu_idmac_select_buffer(ipu_crtc->ch, ipu_crtc->buf_no);
+		event->base.file_priv->event_space += sizeof event->event;
+		kfree(event);
+	}
 
 	return 0;
 }
@@ -618,6 +646,7 @@ static int ipu_get_resources(struct drm_device *drm, struct ipu_crtc *ipu_crtc)
 	struct ipu_soc *ipu = dev_get_drvdata(drm->dev->parent);
 	struct ipu_resource *res = &ipu_resources[ipu_crtc->pipe];
 	int ret;
+	ipu_crtc->ipu = ipu;
 	ipu_crtc->ipu_res = res;
 
 	if (ipu_crtc->pipe == 0)
@@ -676,7 +705,7 @@ static int ipu_crtc_init(struct drm_device *drm, int pipe)
 
 	ipu_crtc->pipe = pipe;
 	ipu_crtc->di_no = pipe;
-	ipu_crtc->buf_no = 0;
+	ipu_crtc->buf_no = 1;
 
 	ret = ipu_get_resources(drm, ipu_crtc);
 	if (ret)
@@ -779,7 +808,7 @@ static int ipu_mmap(struct file *filp, struct vm_area_struct * vma)
 
 	off = 0;
 
-	start = ipu_fb->phys;
+	start = ipu_fb->phys[0];
 	len = PAGE_ALIGN((start & ~PAGE_MASK) + ipu_fb->len);
 	start &= PAGE_MASK;
 

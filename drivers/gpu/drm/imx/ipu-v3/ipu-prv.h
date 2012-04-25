@@ -101,8 +101,8 @@ struct ipu_soc;
 #define IPU_ALT_CHA_BUF0_RDY(ch)	IPU_CM_REG(0x0278 + 4 * ((ch) / 32))
 #define IPU_ALT_CHA_BUF1_RDY(ch)	IPU_CM_REG(0x0280 + 4 * ((ch) / 32))
 
-#define IPU_INT_CTRL(n)		IPU_CM_REG(0x003C + (4 * (n - 1)))
-#define IPU_INT_STAT(n)		IPU_CM_REG(0x0200 + (4 * (n - 1)))
+#define IPU_INT_CTRL(n)		IPU_CM_REG(0x003C + 4 * (n))
+#define IPU_INT_STAT(n)		IPU_CM_REG(0x0200 + 4 * (n))
 
 #define IPU_DI0_COUNTER_RELEASE			(1 << 24)
 #define IPU_DI1_COUNTER_RELEASE			(1 << 25)
@@ -166,13 +166,6 @@ struct ipu_channel {
 struct ipu_dc_priv;
 struct ipu_dmfc_priv;
 
-struct ipu_irq_node {
-	irqreturn_t		(*handler)	(int, void *);	/*!< the ISR */
-	const char		*name;		/*!< device associated with the interrupt */
-	void			*data;		/*!< some unique information for the ISR */
-	__u32			flags;		/*!< not used */
-};
-
 struct ipu_soc {
 	struct device		*dev;
 	spinlock_t		lock;
@@ -192,7 +185,6 @@ struct ipu_soc {
 	int			irq_start;
 	int			irq_sync;
 	int			irq_err;
-	struct ipu_irq_node	irq_list[IPU_IRQ_COUNT];
 
 	struct ipu_dc_priv	*dc_priv;
 	struct ipu_dp_priv	*dp_priv;
