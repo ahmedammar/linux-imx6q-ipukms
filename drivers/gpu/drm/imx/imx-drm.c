@@ -64,6 +64,12 @@ static struct ipu_resource ipu_resources[] = {
 	},
 };
 
+struct ipu_pageflip {
+	struct list_head	list;
+	int			buf_no;
+	struct completion	comp;
+};
+
 struct ipu_crtc {
 	struct drm_crtc		base;
 	int			pipe;
@@ -78,6 +84,7 @@ struct ipu_crtc {
 	int			buf_no;
 	struct clk		*pixclk;
 	int			enabled;
+	struct ipu_pageflip	pageflip_list;
 };
 
 struct ipu_framebuffer {
@@ -94,6 +101,7 @@ struct ipu_drm_private {
 	struct ipu_framebuffer	ifb;
 	int			num_crtcs;
 };
+
 
 static struct fb_ops ipu_ipufb_ops = {
 	.owner = THIS_MODULE,
@@ -169,8 +177,15 @@ irqreturn_t vsync_irq(int irq, void *dcrtc)
  {
 	struct drm_crtc *crtc = (struct drm_crtc *) dcrtc;
 	struct ipu_crtc *ipu_crtc = to_ipu_crtc(crtc);
+	struct ipu_pageflip *e;
 
-	ipu_idmac_select_buffer(ipu_crtc->ch, ipu_crtc->buf_no);
+	if (list_empty(&ipu_crtc->pageflip_list.list))
+		return IRQ_HANDLED;
+
+	e = list_first_entry(&ipu_crtc->pageflip_list.list, struct ipu_pageflip, list);
+	ipu_idmac_select_buffer(ipu_crtc->ch, e->buf_no);
+	complete(&e->comp);
+	list_del(&e->list);
 
 	return IRQ_HANDLED;
 }
@@ -605,18 +620,21 @@ static int ipu_page_flip(struct drm_crtc *crtc,
                          struct drm_framebuffer *fb,
                          struct drm_pending_vblank_event *event)
 {
+	struct ipu_pageflip *entry;
 	struct ipu_crtc *ipu_crtc = to_ipu_crtc(crtc);
 	struct ipu_framebuffer *ipu_fb = to_ipu_framebuffer(crtc->fb);
 
-	/*printk("--> cur_buf: 0x%lx\n", ipu_cm_read(ipu_crtc->ipu, IPU_CHA_CUR_BUF(0)));
-	printk("--> idmac_eof_en: 0x%lx\n", ipu_cm_read(ipu_crtc->ipu, IPU_INT_CTRL(0)));
-	printk("--> idmac_nfb4eof_en: 0x%lx\n", ipu_cm_read(ipu_crtc->ipu, IPU_INT_CTRL(4)));
-	printk("--> dc_fc_en: 0x%lx\n", ipu_cm_read(ipu_crtc->ipu, IPU_INT_CTRL(14)));*/
 	if (event) {
 		ipu_crtc->buf_no = (ipu_fb->phys[0] ==  event->event.user_data) ?  0 : 1;
-		//ipu_idmac_select_buffer(ipu_crtc->ch, ipu_crtc->buf_no);
+		entry = kmalloc(sizeof(struct ipu_pageflip*), GFP_KERNEL);
+		entry->buf_no = ipu_crtc->buf_no;
+		init_completion(&entry->comp);
+		list_add_tail(&entry->list,
+				&ipu_crtc->pageflip_list.list);
+		wait_for_completion(&entry->comp);
 		event->base.file_priv->event_space += sizeof event->event;
 		kfree(event);
+		kfree(entry);
 	}
 
 	return 0;
@@ -714,6 +732,8 @@ static int ipu_crtc_init(struct drm_device *drm, int pipe)
 	drm_crtc_init(drm, &ipu_crtc->base, &ipu_crtc_funcs);
 	drm_mode_crtc_set_gamma_size(&ipu_crtc->base, 256);
 	drm_crtc_helper_add(&ipu_crtc->base, &ipu_helper_funcs);
+
+	INIT_LIST_HEAD(&ipu_crtc->pageflip_list.list);
 
 	return 0;
 }
