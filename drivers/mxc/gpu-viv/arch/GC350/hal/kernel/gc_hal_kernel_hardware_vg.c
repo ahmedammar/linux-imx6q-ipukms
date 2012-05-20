@@ -265,7 +265,7 @@ gckVGHARDWARE_Construct(
         gcmkVERIFY_OK(gckVGHARDWARE_SetFastClear(hardware, -1));
 
         gcmkERR_BREAK(gckOS_CreateMutex(Os, &hardware->powerMutex));
-        gcmkERR_BREAK(gckOS_CreateSignal(Os, gcvTRUE, &hardware->idleSignal));
+        gcmkERR_BREAK(gckOS_CreateSignal(Os, gcvFALSE, &hardware->idleSignal));
 #if gcdPOWER_MANAGEMENT
         gcmkERR_BREAK(gckOS_StartThread(
             hardware->os,

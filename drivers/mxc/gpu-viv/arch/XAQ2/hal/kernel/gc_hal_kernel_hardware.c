@@ -719,7 +719,6 @@ gckHARDWARE_InitializeHardware(
                                       0x00428,
                                       baseAddress));
 
-#ifndef VIVANTE_NO_3D
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
                                       Hardware->core,
                                       0x00420,
@@ -729,7 +728,6 @@ gckHARDWARE_InitializeHardware(
                                       Hardware->core,
                                       0x00424,
                                       baseAddress));
-#endif
 
 #if !VIVANTE_PROFILER && 1
     {
@@ -784,9 +782,70 @@ gckHARDWARE_InitializeHardware(
                                       + 0x00104,
                                       data));
         }
+
+        /* Disable SE clock gating on imx6 (bug #3383). */
+        if ((Hardware->identity.chipModel == gcv2000)
+        &&  (Hardware->identity.chipRevision  == 0x5108))
+        {
+            gcmkONERROR(
+                gckOS_ReadRegisterEx(Hardware->os,
+                                     Hardware->core,
+                                     Hardware->powerBaseAddress
+                                     + 0x00104,
+                                     &data));
+
+            /* Disable RA clock gating. */
+            data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 6:6) - (0 ? 6:6) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 6:6) - (0 ? 6:6) + 1))))))) << (0 ? 6:6))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 6:6) - (0 ? 6:6) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 6:6) - (0 ? 6:6) + 1))))))) << (0 ? 6:6)));
+
+            /* Disable PE clock gating. */
+           data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 2:2) - (0 ? 2:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 2:2) - (0 ? 2:2) + 1))))))) << (0 ? 2:2))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 2:2) - (0 ? 2:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 2:2) - (0 ? 2:2) + 1))))))) << (0 ? 2:2)));
+
+            /* Disable TX clock gating. */
+            data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 7:7) - (0 ? 7:7) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:7) - (0 ? 7:7) + 1))))))) << (0 ? 7:7))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 7:7) - (0 ? 7:7) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:7) - (0 ? 7:7) + 1))))))) << (0 ? 7:7)));
+
+            gcmkONERROR(
+                gckOS_WriteRegisterEx(Hardware->os,
+                                      Hardware->core,
+                                      Hardware->powerBaseAddress
+                                      + 0x00104,
+                                      data));
+
+            gcmkONERROR(
+                gckOS_ReadRegisterEx(Hardware->os,
+                                     Hardware->core,
+                                     Hardware->powerBaseAddress
+                                     + 0x00100,
+                                     &data));
+
+            /* change turnon counter value to 1. */
+            data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 7:4) - (0 ? 7:4) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:4) - (0 ? 7:4) + 1))))))) << (0 ? 7:4))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 7:4) - (0 ? 7:4) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:4) - (0 ? 7:4) + 1))))))) << (0 ? 7:4)));
+
+            /* change turnoff counter value to 1. */
+            data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:16) - (0 ? 31:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:16) - (0 ? 31:16) + 1))))))) << (0 ? 31:16))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 31:16) - (0 ? 31:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:16) - (0 ? 31:16) + 1))))))) << (0 ? 31:16)));
+
+            gcmkONERROR(
+                gckOS_WriteRegisterEx(Hardware->os,
+                                      Hardware->core,
+                                      Hardware->powerBaseAddress
+                                      + 0x00100,
+                                      data));
+
+        }
 #endif
     }
 #endif
+
+    /* Special workaround for HiSi
+    ** Make sure pulse eater kicks in only when SH is idle */
+    if (Hardware->identity.chipModel == gcv4000 &&
+        Hardware->identity.chipRevision == 0x5208)
+    {
+		gcmkONERROR(
+            gckOS_WriteRegisterEx(Hardware->os,
+                                  Hardware->core,
+                                  0x0010C,
+                                  ((((gctUINT32) (0x01590880)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:23) - (0 ? 23:23) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:23) - (0 ? 23:23) + 1))))))) << (0 ? 23:23))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 23:23) - (0 ? 23:23) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:23) - (0 ? 23:23) + 1))))))) << (0 ? 23:23)))));
+    }
 
     /* Test if MMU is initialized. */
     if ((Hardware->kernel      != gcvNULL)
@@ -794,9 +853,12 @@ gckHARDWARE_InitializeHardware(
     )
     {
         /* Reset MMU. */
-        gcmkONERROR(
-            gckHARDWARE_SetMMU(Hardware,
-                               Hardware->kernel->mmu->pageTableLogical));
+        if (Hardware->mmuVersion == 0)
+        {
+            gcmkONERROR(
+                    gckHARDWARE_SetMMU(Hardware,
+                        Hardware->kernel->mmu->pageTableLogical));
+        }
     }
 
     /* Success. */
@@ -2743,14 +2805,13 @@ gckHARDWARE_SetMMU(
                               0x00410,
                               address + baseAddress));
 
-#ifndef VIVANTE_NO_3D
     /* Write the AQMemoryTxPageTable register. */
     gcmkONERROR(
         gckOS_WriteRegisterEx(Hardware->os,
                               Hardware->core,
                               0x00404,
                               address + baseAddress));
-#endif
+
 
     /* Write the AQMemoryPePageTable register. */
     gcmkONERROR(
@@ -2759,14 +2820,12 @@ gckHARDWARE_SetMMU(
                               0x00408,
                               address + baseAddress));
 
-#ifndef VIVANTE_NO_3D
     /* Write the AQMemoryPezPageTable register. */
     gcmkONERROR(
         gckOS_WriteRegisterEx(Hardware->os,
                               Hardware->core,
                               0x0040C,
                               address + baseAddress));
-#endif
 
     /* Return the status. */
     gcmkFOOTER_NO();
@@ -2896,7 +2955,8 @@ gckHARDWARE_SetMMUv2(
     IN gctBOOL Enable,
     IN gctPOINTER MtlbAddress,
     IN gceMMU_MODE Mode,
-    IN gctPOINTER SafeAddress
+    IN gctPOINTER SafeAddress,
+    IN gctBOOL FromPower
     )
 {
     gceSTATUS status;
@@ -2954,7 +3014,7 @@ gckHARDWARE_SetMMUv2(
     command = Hardware->kernel->command;
 
     /* Acquire the command queue. */
-    gcmkONERROR(gckCOMMAND_EnterCommit(command, gcvFALSE));
+    gcmkONERROR(gckCOMMAND_EnterCommit(command, FromPower));
     commitEntered = gcvTRUE;
 
     gcmkONERROR(gckCOMMAND_Reserve(
@@ -2983,13 +3043,13 @@ gckHARDWARE_SetMMUv2(
     gcmkONERROR(gckCOMMAND_Execute(command, 16));
 
     /* Release the command queue. */
-    gcmkONERROR(gckCOMMAND_ExitCommit(command, gcvFALSE));
+    gcmkONERROR(gckCOMMAND_ExitCommit(command, FromPower));
     commitEntered = gcvFALSE;
 
     gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
         "call gckCOMMAND_Stall to make sure the config is done.\n ");
 
-    gcmkONERROR(gckCOMMAND_Stall(command, gcvFALSE));
+    gcmkONERROR(gckCOMMAND_Stall(command, FromPower));
 
     gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
         "Enable MMU through GCREG_MMU_CONTROL.");
@@ -3004,7 +3064,7 @@ gckHARDWARE_SetMMUv2(
     gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
         "call gckCOMMAND_Stall to check MMU available.\n");
 
-    gcmkONERROR(gckCOMMAND_Stall(command, gcvFALSE));
+    gcmkONERROR(gckCOMMAND_Stall(command, FromPower));
 
     gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
         "The MMU is available.\n");
@@ -3290,6 +3350,25 @@ gckHARDWARE_SetFastClear(
 
         gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
                        "FastClear=%d Compression=%d", Enable, Compression);
+    }
+
+    /* Special patch for 0x320 0x5220. */
+    if (Hardware->identity.chipRevision == 0x5220 && Hardware->identity.chipModel == gcv320)
+    {
+        gctUINT32 debug;
+
+        /* Read AQMemoryDebug register. */
+        gcmkONERROR(
+                gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00414, &debug));
+
+        debug |= 8;
+
+        /* Write back AQMemoryDebug register. */
+        gcmkONERROR(
+                gckOS_WriteRegisterEx(Hardware->os,
+                    Hardware->core,
+                    0x00414,
+                    debug));
     }
 
     /* Success. */
@@ -3918,6 +3997,20 @@ gckHARDWARE_SetPowerManagementState(
 
         /* Start the Isr. */
         gcmkONERROR(Hardware->startIsr(Hardware->isrContext));
+
+        /* Set NEW MMU. */
+        if (Hardware->mmuVersion != 0)
+        {
+            gcmkONERROR(
+                    gckHARDWARE_SetMMUv2(
+                        Hardware,
+                        gcvTRUE,
+                        Hardware->kernel->mmu->pageTableLogical,
+                        gcvMMU_MODE_4K,
+                        (gctUINT8_PTR)Hardware->kernel->mmu->pageTableLogical + gcdMMU_MTLB_SIZE,
+                        gcvTRUE
+                        ));
+        }
     }
 
     /* Get time until started. */

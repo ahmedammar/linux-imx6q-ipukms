@@ -46,7 +46,7 @@ typedef va_list gctARGUMENTS;
     va_end(Arguments)
 
 #define gcmkDECLARE_LOCK(__spinLock__) \
-    static DEFINE_SPINLOCK(__spinLock__)
+    static DEFINE_SPINLOCK(__spinLock__);
 
 #define gcmkLOCKSECTION(__spinLock__) \
     spin_lock(&__spinLock__)

@@ -163,7 +163,7 @@ int drv_open(
         gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
     }
 
-    data = kmalloc(sizeof(gcsHAL_PRIVATE_DATA), GFP_KERNEL);
+    data = kmalloc(sizeof(gcsHAL_PRIVATE_DATA), GFP_KERNEL | __GFP_NOWARN);
 
     if (data == gcvNULL)
     {
@@ -904,7 +904,7 @@ static int __devinit gpu_probe(struct platform_device *pdev)
     gcmkHEADER();
 
     ret = platform_get_irq(pdev, 0);
-    if (ret >= 0)
+    if (ret)
         irqLine = ret;
 
     res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -913,9 +913,9 @@ static int __devinit gpu_probe(struct platform_device *pdev)
         registerMemBase = res->start;
         registerMemSize = res->end - res->start + 1;
     }
-
+/*
     ret = platform_get_irq(pdev, 1);
-    if (ret >= 0)
+    if (ret)
         irqLine2D = ret;
 
     res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
@@ -926,7 +926,7 @@ static int __devinit gpu_probe(struct platform_device *pdev)
     }
 
     ret = platform_get_irq(pdev, 2);
-    if (ret >= 0)
+    if (ret)
         irqLineVG = ret;
 
     res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
@@ -935,7 +935,7 @@ static int __devinit gpu_probe(struct platform_device *pdev)
         registerMemBaseVG = res->start;
         registerMemSizeVG = res->end - res->start + 1;
     }
-
+*/
     pdata = pdev->dev.platform_data;
     if (pdata) {
         contiguousBase = pdata->reserved_mem_base;
@@ -1032,10 +1032,6 @@ static int __devinit gpu_resume(struct platform_device *dev)
     return 0;
 }
 
-static const struct of_device_id gpu_viv_dt_ids[] = {
-	{ .compatible = "viv,galcore", },
-	{ /* sentinel */ }
-};
 static struct platform_driver gpu_driver = {
     .probe      = gpu_probe,
     .remove     = gpu_remove,
@@ -1044,7 +1040,6 @@ static struct platform_driver gpu_driver = {
     .resume     = gpu_resume,
 
     .driver     = {
-	.of_match_table = gpu_viv_dt_ids,
         .name   = DEVICE_NAME,
     }
 };
