@@ -67,17 +67,16 @@ struct platform_device *__init imx_add_mxc_nand(
 			.end = data->iobase + data->iosize - 1,
 			.flags = IORESOURCE_MEM,
 		}, {
-			.start = data->axibase,
-			.end = data->axibase + SZ_16K - 1,
-			.flags = IORESOURCE_MEM,
-		}, {
 			.start = data->irq,
 			.end = data->irq,
 			.flags = IORESOURCE_IRQ,
+		}, {
+			.start = data->axibase,
+			.end = data->axibase + SZ_16K - 1,
+			.flags = IORESOURCE_MEM,
 		},
 	};
 	return imx_add_platform_device("mxc_nand", data->id,
-			res + !data->axibase,
-			ARRAY_SIZE(res) - !data->axibase,
+			res, ARRAY_SIZE(res) - !data->axibase,
 			pdata, sizeof(*pdata));
 }
