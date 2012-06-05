@@ -1479,6 +1479,13 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 		host->devtype_data->irq_control(host, 1);
 	}
 
+	if (this->ecc.mode == NAND_ECC_HW) {
+		if (nfc_is_v1())
+			this->ecc.strength = 1;
+		else
+			this->ecc.strength = (host->eccsize == 4) ? 4 : 8;
+	}
+
 	/* first scan to find the device and get the page size */
 	if (nand_scan_ident(mtd, nfc_is_v21() ? 4 : 1, NULL)) {
 		err = -ENXIO;
@@ -1492,13 +1499,6 @@ static int __init mxcnd_probe(struct platform_device *pdev)
 		this->ecc.layout = host->devtype_data->ecclayout_2k;
 	else if (mtd->writesize == 4096)
 		this->ecc.layout = host->devtype_data->ecclayout_4k;
-
-	if (this->ecc.mode == NAND_ECC_HW) {
-		if (nfc_is_v1())
-			this->ecc.strength = 1;
-		else
-			this->ecc.strength = (host->eccsize == 4) ? 4 : 8;
-	}
 
 	/* second phase scan */
 	if (nand_scan_tail(mtd)) {
