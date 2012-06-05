@@ -361,6 +361,7 @@ int __init mx51_clocks_init(unsigned long rate_ckil, unsigned long rate_osc,
 	clk_register_clkdev(clk[ssi1_ipg_gate], NULL, "83fcc000.ssi");
 	clk_register_clkdev(clk[ssi2_ipg_gate], NULL, "70014000.ssi");
 	clk_register_clkdev(clk[ssi3_ipg_gate], NULL, "83fe8000.ssi");
+	clk_register_clkdev(clk[nfc_gate], NULL, "83fdb000.nand");
 
 	/* set the usboh3 parent to pll2_sw */
 	clk_set_parent(clk[usboh3_sel], clk[pll2_sw]);
@@ -461,6 +462,7 @@ int __init mx53_clocks_init(unsigned long rate_ckil, unsigned long rate_osc,
 	clk_register_clkdev(clk[ipu_di1_sel], "di1_sel", "53fa8008.lvds");
 	clk_register_clkdev(clk[ldb_di0_sel], "di0_pll", "53fa8008.lvds");
 	clk_register_clkdev(clk[ldb_di1_sel], "di1_pll", "53fa8008.lvds");
+	clk_register_clkdev(clk[nfc_gate], NULL, "63fdb000.nand");
 
 	/* set SDHC root clock to 200MHZ*/
 	clk_set_rate(clk[esdhc_a_podf], 200000000);
