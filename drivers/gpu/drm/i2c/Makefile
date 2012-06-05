@@ -5,3 +5,6 @@ obj-$(CONFIG_DRM_I2C_CH7006) += ch7006.o
 
 sil164-y := sil164_drv.o
 obj-$(CONFIG_DRM_I2C_SIL164) += sil164.o
+
+siihdmi := siihdmi_drv.o
+obj-$(CONFIG_DRM_I2C_SIIHDMI) += siihdmi.o

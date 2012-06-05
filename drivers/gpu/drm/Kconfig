@@ -45,6 +45,13 @@ config DRM_LOAD_EDID_FIRMWARE
 	  default case is N. Details and instructions how to build your own
 	  EDID data are given in Documentation/EDID/HOWTO.txt.
 
+config DRM_KMS_ENCON
+	tristate
+	depends on DRM
+	help
+	  Helper for KMS drivers which use connectors and encoders with a 1:1
+	  relationship
+
 config DRM_TTM
 	tristate
 	depends on DRM
@@ -179,8 +186,14 @@ config DRM_SAVAGE
 	  Choose this option if you have a Savage3D/4/SuperSavage/Pro/Twister
 	  chipset. If M is selected the module will be called savage.
 
-source "drivers/gpu/drm/exynos/Kconfig"
+config DRM_I2C_SIIHDMI
+	tristate "Silicon Image HDMI transmitter"
+	depends on DRM && I2C
+	help
+	  Support for Silicon Image SII9022 and compatible HDMI transmitters
 
+source "drivers/gpu/drm/imx/Kconfig"
+source "drivers/gpu/drm/exynos/Kconfig"
 source "drivers/gpu/drm/vmwgfx/Kconfig"
 
 source "drivers/gpu/drm/gma500/Kconfig"

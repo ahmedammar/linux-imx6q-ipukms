@@ -1992,6 +1992,12 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "usboh3_clk", usboh3_clk),
 	_REGISTER_CLOCK(NULL, "sata_clk", sata_clk),
 	_REGISTER_CLOCK(NULL, "cko1_clk", cko1_clk),
+	_REGISTER_CLOCK(NULL, "ipu1_clk", ipu1_clk),
+	_REGISTER_CLOCK(NULL, "ipu2_clk", ipu2_clk),
+	_REGISTER_CLOCK(NULL, "ipu1_di0_clk", ipu1_di0_clk),
+	_REGISTER_CLOCK(NULL, "ipu1_di1_clk", ipu1_di1_clk),
+	_REGISTER_CLOCK(NULL, "ipu2_di0_clk", ipu2_di0_clk),
+	_REGISTER_CLOCK(NULL, "ipu2_di1_clk", ipu2_di1_clk),
 };
 
 int imx6q_set_lpm(enum mxc_cpu_pwr_mode mode)
