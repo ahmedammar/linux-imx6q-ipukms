@@ -45,6 +45,10 @@
 				status = "okay";
 			};
 
+			lvds@53fa8008 {
+				crtcs = <0x1 0x2>;
+			};
+
 			iomuxc@53fa8000 {
 				compatible = "fsl,imx53-iomuxc-qsb";
 				reg = <0x53fa8000 0x4000>;
