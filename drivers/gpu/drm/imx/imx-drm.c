@@ -30,6 +30,7 @@
 #include <drm/imx-ipu-v3-ioctls.h>
 #include <asm/fb.h>
 #include <drm/drm_encon.h>
+#include <linux/irq.h>
 
 #include "ipu-v3/ipu-prv.h"
 
@@ -177,21 +178,29 @@ irqreturn_t vsync_irq(int irq, void *dcrtc)
  {
 	struct drm_crtc *crtc = (struct drm_crtc *) dcrtc;
 	struct ipu_crtc *ipu_crtc = to_ipu_crtc(crtc);
+	struct ipu_soc *ipu = ipu_crtc->ipu;
 	struct ipu_pageflip *e;
 
+//	printk("%s irq:%i irq_start:%i\n", __func__, irq, ipu->irq_start);
+
 	if (list_empty(&ipu_crtc->pageflip_list.list))
-		return IRQ_HANDLED;
+		goto handled;
 
 	e = list_first_entry(&ipu_crtc->pageflip_list.list, struct ipu_pageflip, list);
 	ipu_idmac_select_buffer(ipu_crtc->ch, e->buf_no);
 	complete(&e->comp);
 	list_del(&e->list);
 
+handled:
+	//handle_nested_irq(irq - ipu->irq_start - 2);
 	return IRQ_HANDLED;
 }
 
+extern irqreturn_t handle_ipusync_pih(int irq, void *devid);
+
 static void ipu_fb_enable(struct drm_crtc *crtc)
 {
+	int status;
 	struct ipu_crtc *ipu_crtc = to_ipu_crtc(crtc);
 	struct ipu_soc *ipu = ipu_crtc->ipu;
 
@@ -207,7 +216,16 @@ static void ipu_fb_enable(struct drm_crtc *crtc)
 
 	ipu_idmac_set_double_buffer(ipu_crtc->ch, true);
 	ipu_crtc->enabled = 1;
-	request_threaded_irq(ipu->irq_start + ipu_crtc->ch->num, NULL, vsync_irq, 0, "vsync_irq", crtc);
+
+	printk("request_threaded_irq irq:%i irq_start:%i\n", ipu_crtc->ch->num, ipu->irq_start);
+	request_threaded_irq(ipu->irq_start + 2 + ipu_crtc->ch->num, NULL, vsync_irq, 0, "vsync_irq", ipu_crtc);
+
+	status = request_threaded_irq(ipu->irq_sync, NULL, handle_ipusync_pih,
+				      IRQF_ONESHOT,
+				      "ipu-sync", ipu);
+	if (status < 0) {
+		dev_err(ipu->dev, "could not claim irq%d: %d\n", ipu->irq_sync, status);
+	}
 }
 
 static void ipu_fb_disable(struct ipu_crtc *ipu_crtc)
@@ -290,7 +308,7 @@ static int ipu_fb_set_par(struct drm_crtc *crtc,
 	}
 
 	ipu_channel_set_resolution(ipu_crtc->ch, mode->hdisplay, mode->vdisplay);
-	ipu_channel_set_stride(ipu_crtc->ch, fb->pitch);
+	ipu_channel_set_stride(ipu_crtc->ch, fb->pitches[0]);
 	ipu_channel_set_buffer(ipu_crtc->ch, 0, phys);
 	ipu_channel_set_buffer(ipu_crtc->ch, 1, ipu_fb->phys[1]); /* FIXME */
 
@@ -319,22 +337,12 @@ static int ipu_fb_set_par(struct drm_crtc *crtc,
 
 int ipu_framebuffer_init(struct drm_device *drm,
 			   struct ipu_framebuffer *ipu_fb,
-			   struct drm_mode_fb_cmd *mode_cmd)
+			   struct drm_mode_fb_cmd2 *mode_cmd)
 {
 	int ret;
 
-	if (mode_cmd->pitch & 63)
+	if (mode_cmd->pitches[0] & 63)
 		return -EINVAL;
-
-	switch (mode_cmd->bpp) {
-	case 8:
-	case 16:
-	case 24:
-	case 32:
-		break;
-	default:
-		return -EINVAL;
-	}
 
 	ret = drm_framebuffer_init(drm, &ipu_fb->base, &ipu_fb_funcs);
 	if (ret) {
@@ -355,7 +363,7 @@ static int ipu_ipufb_create(struct drm_fb_helper *helper,
 	struct fb_info *info;
 	struct drm_framebuffer *fb;
 	struct ipu_framebuffer *ipu_fb;
-	struct drm_mode_fb_cmd mode_cmd;
+	struct drm_mode_fb_cmd2 mode_cmd = { 0 };
 	int size, ret;
 
 	/* we don't do packed 24bpp */
@@ -364,12 +372,11 @@ static int ipu_ipufb_create(struct drm_fb_helper *helper,
 
 	mode_cmd.width = sizes->surface_width;
 	mode_cmd.height = sizes->surface_height;
+	mode_cmd.pitches[0] = sizes->surface_width * (sizes->surface_bpp >> 3);
+	mode_cmd.pixel_format = drm_mode_legacy_fb_format(sizes->surface_bpp, 
+                sizes->surface_depth);
 
-	mode_cmd.bpp = sizes->surface_bpp;
-	mode_cmd.pitch = ALIGN(mode_cmd.width * ((mode_cmd.bpp + 1) / 8), 64);
-	mode_cmd.depth = sizes->surface_depth;
-
-	size = mode_cmd.pitch * mode_cmd.height * 3; /* FIXME */
+	size = mode_cmd.pitches[0] * mode_cmd.height * 3; /* FIXME */
 	size = ALIGN(size, PAGE_SIZE);
 
 	mutex_lock(&drm->struct_mutex);
@@ -422,7 +429,7 @@ static int ipu_ipufb_create(struct drm_fb_helper *helper,
 	}
 	info->screen_size = size;
 
-	drm_fb_helper_fill_fix(info, fb->pitch, fb->depth);
+	drm_fb_helper_fill_fix(info, fb->pitches[0], fb->depth);
 	drm_fb_helper_fill_var(info, &priv->fb_helper, sizes->fb_width, sizes->fb_height);
 
 	info->pixmap.size = 64*1024;
@@ -500,7 +507,7 @@ static struct drm_fb_helper_funcs ipu_fb_helper_funcs = {
 static struct drm_framebuffer *
 ipu_user_framebuffer_create(struct drm_device *drm,
 			      struct drm_file *filp,
-			      struct drm_mode_fb_cmd *mode_cmd)
+			      struct drm_mode_fb_cmd2 *mode_cmd)
 {
 	struct ipu_framebuffer *ipu_fb;
 	int ret;
@@ -518,7 +525,8 @@ ipu_user_framebuffer_create(struct drm_device *drm,
 		return ERR_PTR(ret);
 	}
 
-	ipu_fb->len = mode_cmd->width * mode_cmd->height * (mode_cmd->bpp >> 3);
+	ipu_fb->len = mode_cmd->pitches[0] * mode_cmd->height * 3;
+	ipu_fb->len = ALIGN(ipu_fb->len, PAGE_SIZE);
 	ipu_fb->virt = dma_alloc_writecombine(drm->dev,
 				ipu_fb->len,
 				(dma_addr_t *)&ipu_fb->phys,
@@ -556,7 +564,7 @@ static int ipu_crtc_mode_set(struct drm_crtc *crtc,
 
 	phys = ipu_fb->phys[0];
 	phys += x * 4; /* FIXME */
-	phys += y * fb->pitch;
+	phys += y * fb->pitches[0];
 	ipu_fb->phys[1] = phys + fb->width*fb->height*4;
 
 	ipu_fb_set_par(crtc, mode, phys);
@@ -576,10 +584,10 @@ static int ipu_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 
 	phys = ipu_fb->phys[0];
 	phys += x * 4; /* FIXME */
-	phys += y * fb->pitch;
+	phys += y * fb->pitches[0];
 	ipu_fb->phys[1] = phys + fb->width*fb->height*4;
 
-	ipu_channel_set_stride(ipu_crtc->ch, fb->pitch);
+	ipu_channel_set_stride(ipu_crtc->ch, fb->pitches[0]);
 	ipu_channel_set_buffer(ipu_crtc->ch, 0, phys);
 	ipu_channel_set_buffer(ipu_crtc->ch, 1, ipu_fb->phys[1]); /* FIXME */
 
@@ -765,11 +773,11 @@ static int ipu_fbdev_init(struct drm_device *drm)
 
 	drm->mode_config.fb_base = 0xdeadbeef;
 
-	for (i = 0; i < 2; i++) {
+	for (i = 0; i < 1; i++) {
 		ret = ipu_crtc_init(drm, i);
 		if (ret)
 			goto out;
-		priv->encon[i] = drm_encon_get(drm, i);
+		priv->encon[i] = drm_encon_add_dummy("imx-drm.0", i);//drm_encon_get(drm, i);
 		encon = priv->encon[i];
 		if (!encon)
 			continue;
@@ -892,7 +900,7 @@ static int ipu_driver_unload(struct drm_device *drm)
 
 	ipu_ipufb_destroy(drm);
 
-	for (i = 0; i < 2; i++) {
+	for (i = 0; i < 1; i++) {
 		ipu_crtc_cleanup(drm, i);
 
 		if (priv->encon[i])
@@ -927,6 +935,21 @@ struct drm_ioctl_desc ipu_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(IMX_IPU_QUEUE, ipu_task_queue_ioctl, DRM_AUTH),
 };
 
+static const struct file_operations ipu_driver_fops = {
+	.owner = THIS_MODULE,
+	.open = drm_open,
+	.release = drm_release,
+	.unlocked_ioctl = drm_ioctl,
+	.mmap = ipu_mmap,
+	.poll = drm_poll,
+	.fasync = drm_fasync,
+	.read = drm_read,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = ipu_compat_ioctl,
+#endif
+	.llseek = noop_llseek,
+};
+
 static struct drm_driver driver = {
 	.driver_features = DRIVER_MODESET,
 	.load = ipu_driver_load,
@@ -940,23 +963,11 @@ static struct drm_driver driver = {
 
 	.enable_vblank = ipu_enable_vblank,
 	.disable_vblank = ipu_disable_vblank,
+
 	.reclaim_buffers = drm_core_reclaim_buffers,
 	.ioctls = ipu_ioctls,
-	.num_ioctls = ARRAY_SIZE(ipu_ioctls),
-	.fops = {
-		 .owner = THIS_MODULE,
-		 .open = drm_open,
-		 .release = drm_release,
-		 .unlocked_ioctl = drm_ioctl,
-		 .mmap = ipu_mmap,
-		 .poll = drm_poll,
-		 .fasync = drm_fasync,
-		 .read = drm_read,
-#ifdef CONFIG_COMPAT
-		 .compat_ioctl = ipu_compat_ioctl,
-#endif
-		 .llseek = noop_llseek,
-	},
+
+	.fops = &ipu_driver_fops,
 
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,

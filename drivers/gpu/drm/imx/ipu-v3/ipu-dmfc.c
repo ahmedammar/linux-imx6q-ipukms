@@ -414,6 +414,8 @@ int ipu_dmfc_init(struct ipu_soc *ipu, struct device *dev, unsigned long base,
 	writel(0x2020f6f6, priv->base + DMFC_DP_CHAN_DEF);
 	writel(0x00000003, priv->base + DMFC_GENERAL1);
 
+	ipu_get(priv->ipu);
+
 	return 0;
 }
 

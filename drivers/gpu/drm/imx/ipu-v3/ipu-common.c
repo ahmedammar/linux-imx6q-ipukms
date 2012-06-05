@@ -25,10 +25,10 @@
 #include <linux/clk.h>
 #include <linux/list.h>
 #include <linux/irq.h>
+#include <linux/irqdomain.h>
 #include <linux/module.h>
 
 #include <mach/common.h>
-#include <mach/ipu-v3.h>
 #include <drm/imx-ipu-v3.h>
 
 #include "ipu-prv.h"
@@ -595,14 +595,14 @@ static int ipu_reset(struct ipu_soc *ipu)
 {
 	int timeout = 10000;
 	u32 val;
-
+#if 0
 	/* hard reset the IPU */
 	val = readl(MX51_IO_ADDRESS(MX51_SRC_BASE_ADDR));
 	val |= 1 << 3;
 	writel(val, MX51_IO_ADDRESS(MX51_SRC_BASE_ADDR));
 
 	mdelay(300); /* FIXME: such a big delay needed? */
-
+#endif
 	ipu_cm_write(ipu, 0x807FFFFF, IPU_MEM_RST);
 
 	while (ipu_cm_read(ipu, IPU_MEM_RST) & 0x80000000) {
@@ -693,6 +693,7 @@ void ipu_put(struct ipu_soc *ipu)
 }
 EXPORT_SYMBOL_GPL(ipu_put);
 
+#if 0
 static void ipu_irq_handle(struct ipu_soc *ipu, const int *regs, int num_regs)
 {
 	unsigned long status;
@@ -714,6 +715,8 @@ static void ipu_irq_handler(unsigned int irq, struct irq_desc *desc)
 	struct ipu_soc *ipu = irq_desc_get_handler_data(desc);
 	const int int_reg[] = { 0, 1, 2, 3, 10, 11, 12, 13, 14};
 
+	printk("%s\n", __func__);
+
 	ipu_irq_handle(ipu, int_reg, ARRAY_SIZE(int_reg));
 }
 
@@ -722,17 +725,22 @@ static void ipu_err_irq_handler(unsigned int irq, struct irq_desc *desc)
 	struct ipu_soc *ipu = irq_desc_get_handler_data(desc);
 	const int int_reg[] = { 4, 5, 8, 9};
 
+	printk("%s\n", __func__);
+
 	ipu_irq_handle(ipu, int_reg, ARRAY_SIZE(int_reg));
 }
+#endif
 
-static void ipu_ack_irq(struct irq_data *d)
+static void ipu_sih_ack(struct irq_data *d)
 {
 	struct ipu_soc *ipu = irq_data_get_irq_chip_data(d);
-	unsigned int irq = d->irq - ipu->irq_start;
+	unsigned int irq = d->irq - ipu->irq_start - 2;
 
 //	ipu_cm_write(ipu, 1 << (irq % 32), IPU_INT_STAT(irq / 32));
 	unsigned long flags;
 	u32 reg;
+
+	//printk("%s irq:%i irq_start:%i\n", __func__, irq, ipu->irq_start);
 
 	spin_lock_irqsave(&ipu->lock, flags);
 	reg = ipu_cm_read(ipu, IPU_INT_STAT(irq / 32));
@@ -741,12 +749,14 @@ static void ipu_ack_irq(struct irq_data *d)
 	spin_unlock_irqrestore(&ipu->lock, flags);
 }
 
-static void ipu_unmask_irq(struct irq_data *d)
+static void ipu_sih_unmask(struct irq_data *d)
 {
 	struct ipu_soc *ipu = irq_data_get_irq_chip_data(d);
-	unsigned int irq = d->irq - ipu->irq_start;
+	unsigned int irq = d->irq - ipu->irq_start - 2;
 	unsigned long flags;
 	u32 reg;
+
+	//printk("%s irq:%i irq_start:%i\n", __func__, irq, ipu->irq_start);
 
 	spin_lock_irqsave(&ipu->lock, flags);
 	reg = ipu_cm_read(ipu, IPU_INT_CTRL(irq / 32));
@@ -755,12 +765,14 @@ static void ipu_unmask_irq(struct irq_data *d)
 	spin_unlock_irqrestore(&ipu->lock, flags);
 }
 
-static void ipu_mask_irq(struct irq_data *d)
+static void ipu_sih_mask(struct irq_data *d)
 {
 	struct ipu_soc *ipu = irq_data_get_irq_chip_data(d);
-	unsigned int irq = d->irq - ipu->irq_start;
+	unsigned int irq = d->irq - ipu->irq_start - 2;
 	unsigned long flags;
 	u32 reg;
+
+	//printk("%s irq:%i irq_start:%i\n", __func__, irq, ipu->irq_start);
 
 	spin_lock_irqsave(&ipu->lock, flags);
 	reg = ipu_cm_read(ipu, IPU_INT_CTRL(irq / 32));
@@ -769,12 +781,14 @@ static void ipu_mask_irq(struct irq_data *d)
 	spin_unlock_irqrestore(&ipu->lock, flags);
 }
 
+#if 0
 static struct irq_chip ipu_irq_chip = {
 	.name = "ipu-v3",
 	.irq_ack = ipu_ack_irq,
 	.irq_mask = ipu_mask_irq,
 	.irq_unmask = ipu_unmask_irq,
 };
+#endif
 
 static void ipu_submodules_exit(struct ipu_soc *ipu)
 {
@@ -836,6 +850,173 @@ static int ipu_add_client_devices(struct ipu_soc *ipu)
 	return ret;
 }
 
+static inline void activate_irq(int irq)
+{
+#ifdef CONFIG_ARM
+	/*
+	 * ARM requires an extra step to clear IRQ_NOREQUEST, which it
+	 * sets on behalf of every irq_chip.  Also sets IRQ_NOPROBE.
+	 */
+	set_irq_flags(irq, IRQF_VALID);
+#else
+	/* same effect on other architectures */
+	irq_set_noprobe(irq);
+#endif
+}
+
+static void ipu_irq_handle(struct ipu_soc *ipu, const int *regs, int num_regs)
+{
+	unsigned long status;
+	int i, bit, irq_base;
+
+	for (i = 0; i < num_regs; i++) {
+
+		status = ipu_cm_read(ipu, IPU_INT_STAT(regs[i]));
+		status &= ipu_cm_read(ipu, IPU_INT_CTRL(regs[i]));
+
+		irq_base = ipu->irq_start + 2 + regs[i] * 32;
+
+//		printk("%s status:%lx irq_base:%i\n", __func__, status, irq_base);
+		for_each_set_bit(bit, &status, 32)
+			generic_handle_irq(irq_base + bit);
+	}
+}
+
+static void ipu_irq_handler(struct ipu_soc *ipu, unsigned int irq)
+{
+	const int int_reg[] = { 0, 1, 2, 3, 10, 11, 12, 13, 14};
+
+//	printk("%s irq:%i\n", __func__, irq);
+
+	ipu_irq_handle(ipu, int_reg, ARRAY_SIZE(int_reg));
+}
+
+static void ipu_err_irq_handler(unsigned int irq, struct irq_desc *desc)
+{
+	struct ipu_soc *ipu = irq_desc_get_handler_data(desc);
+	const int int_reg[] = { 4, 5, 8, 9};
+
+	printk("%s\n", __func__);
+
+	ipu_irq_handle(ipu, int_reg, ARRAY_SIZE(int_reg));
+}
+
+static struct irq_chip ipu_sih_irq_chip = {
+	.name		= "ipu-sync",
+	.irq_mask	= ipu_sih_mask,
+	.irq_unmask	= ipu_sih_unmask,
+	.irq_ack	= ipu_sih_ack,
+//	.irq_set_type	= ipu_sih_set_type,
+//	.irq_bus_lock	= ipu_sih_bus_lock,
+//	.irq_bus_sync_unlock = twl4030_sih_bus_sync_unlock,
+};
+
+irqreturn_t handle_ipusync_pih(int irq, void *devid)
+{
+	struct ipu_soc *ipu = (struct ipu_soc*) devid;
+
+	ipu_irq_handler(ipu, irq);
+
+	return IRQ_HANDLED;
+}
+
+#if 0
+int __must_check
+ipu_request_irq(unsigned int irq, irq_handler_t handler,
+		     irq_handler_t thread_fn,
+		     unsigned long flags, const char *name, void *dev)
+{
+	status = _delayed_request_threaded_irq(irq, NULL, thread_fn,
+				      0,
+				      name, dev);
+	if (status < 0) {
+		dev_err(ipu->dev, "could not claim irq%d: %d\n", ipu->irq_sync, status);
+	}
+	return status
+
+}
+#endif
+
+static int ipu_irq_init(struct ipu_soc *ipu)
+{
+	int status, i, irq;
+	unsigned long flags;
+	static struct irq_chip ipu_irq_chip2;
+	struct device_node *node = ipu->dev->of_node;
+	u32 reg;
+
+	ipu->irq_start = irq_alloc_descs(-1, 0, IPU_NUM_IRQS, 0);
+	if (ipu->irq_start < 0)
+		return ipu->irq_start;
+
+	irq_domain_add_legacy(node, IPU_NUM_IRQS, ipu->irq_start, 0,
+				&irq_domain_simple_ops, NULL);
+
+	/*
+	 * Install an irq handler for each of the SIH modules;
+	 * clone dummy irq_chip since PIH can't *do* anything
+	 */
+	ipu_irq_chip2 = dummy_irq_chip;
+	ipu_irq_chip2.name = "ipu-v3";
+
+	//ipu_sih_irq_chip.irq_ack = dummy_irq_chip.irq_ack;
+	//ipu_irq_chip2.irq_unmask = ipu_unmask_irq;
+
+	for (i = ipu->irq_start; i < ipu->irq_start + 2; i++) {
+		irq_set_chip_and_handler(i, &ipu_irq_chip2, handle_simple_irq);
+		irq_set_nested_thread(i, 1);
+		activate_irq(i);
+	}
+
+	for (i = 0; i < IPU_NUM_IRQS - 2; i++) {
+		irq = ipu->irq_start + 2 + i;
+		irq_set_chip_data(irq, ipu);
+		irq_set_chip_and_handler(irq, &ipu_sih_irq_chip,
+					 handle_level_irq);
+		irq_set_nested_thread(irq, 0);
+		activate_irq(irq);
+
+		spin_lock_irqsave(&ipu->lock, flags);
+
+		reg = ipu_cm_read(ipu, IPU_INT_CTRL(i / 32));
+		reg &= ~(1 << (i % 32));
+		ipu_cm_write(ipu, reg, IPU_INT_CTRL(i / 32));
+
+		reg = ipu_cm_read(ipu, IPU_INT_STAT(i / 32));
+		reg |= 1 << (i % 32);
+		ipu_cm_write(ipu, reg, IPU_INT_STAT(i / 32));
+
+		spin_unlock_irqrestore(&ipu->lock, flags);
+	}
+	printk("%s\n", __func__);
+#if 0
+	status = request_threaded_irq(ipu->irq_start + 23, NULL, handle_vsync, 0,
+				      "vsync", NULL);
+	if (status < 0) {
+		dev_err(ipu->dev, "could not claim irq%d: %d\n", irq, status);
+		goto fail_rqirq;
+	}
+	status = request_threaded_irq(ipu->irq_sync, NULL, handle_ipusync_pih,
+				      IRQF_ONESHOT,
+				      "ipu-sync", ipu);
+	if (status < 0) {
+		dev_err(ipu->dev, "could not claim irq%d: %d\n", ipu->irq_sync, status);
+		goto fail_rqirq;
+	}
+#endif
+
+	return 0;
+
+fail_rqirq:
+	for (i = ipu->irq_start; i < ipu->irq_start + IPU_NUM_IRQS; i++) {
+		irq_set_nested_thread(i, 0);
+		irq_set_chip_and_handler(i, NULL, NULL);
+	}
+
+	return status;
+}
+
+#if 0
 static int ipu_irq_init(struct ipu_soc *ipu)
 {
 	int i;
@@ -875,6 +1056,7 @@ static void ipu_irq_exit(struct ipu_soc *ipu)
 
 	irq_free_descs(ipu->irq_start, IPU_NUM_IRQS);
 }
+#endif
 
 static int __devinit ipu_probe(struct platform_device *pdev)
 {
@@ -883,14 +1065,14 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 	unsigned long ipu_base;
 	int i, ret, irq_sync, irq_err;
 
-	irq_sync = platform_get_irq(pdev, 0);
-	irq_err = platform_get_irq(pdev, 1);
+	irq_err = platform_get_irq(pdev, 0);
+	irq_sync = platform_get_irq(pdev, 1);
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
 	if (!res || irq_sync < 0 || irq_err < 0)
 		return -ENODEV;
 
-	ipu_base = res->start + 0x1e000000; // this should be better done
+	ipu_base = res->start + 0x00200000; //0x1e000000; // this should be better done
 
 	ipu = devm_kzalloc(&pdev->dev, sizeof(*ipu), GFP_KERNEL);
 	if (!ipu)
@@ -913,7 +1095,7 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 		goto failed_ioremap;
 	}
 
-	ipu->clk = clk_get(&pdev->dev, "ipu");
+	ipu->clk = clk_get(&pdev->dev, "ipu1_clk");
 	if (IS_ERR(ipu->clk)) {
 		ret = PTR_ERR(ipu->clk);
 		dev_err(&pdev->dev, "clk_get failed with %d", ret);
@@ -957,7 +1139,7 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 failed_add_clients:
 	ipu_submodules_exit(ipu);
 failed_submodules_init:
-	ipu_irq_exit(ipu);
+	//ipu_irq_exit(ipu);
 out_failed_irq:
 	ipu_put(ipu);
 	clk_put(ipu->clk);
@@ -976,7 +1158,7 @@ static int __devexit ipu_remove(struct platform_device *pdev)
 
 	platform_device_unregister_children(pdev);
 	ipu_submodules_exit(ipu);
-	ipu_irq_exit(ipu);
+	//ipu_irq_exit(ipu);
 
 	ipu_usecount = atomic_read(&ipu->usecount);
 
@@ -990,9 +1172,15 @@ static int __devexit ipu_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id mxc_ipu_dt_ids[] = {
+	{ .compatible = "fsl,imx6q-ipu" },
+	{ /* sentinel */ }
+};
+
 static struct platform_driver imx_ipu_driver = {
 	.driver = {
 		.name = "imx-ipuv3",
+		.of_match_table = mxc_ipu_dt_ids,
 	},
 	.probe = ipu_probe,
 	.remove = __devexit_p(ipu_remove),

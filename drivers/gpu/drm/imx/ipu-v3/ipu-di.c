@@ -741,9 +741,9 @@ int ipu_di_init(struct ipu_soc *ipu, struct device *dev, int id,
 		return -EINVAL;
 
 	if (id)
-		clk_id = "di1";
+		clk_id = "ipu1_di1_clk";
 	else
-		clk_id = "di0";
+		clk_id = "ipu1_di0_clk";
 
 	ipu_dev = dev;
 
@@ -784,7 +784,7 @@ int ipu_di_init(struct ipu_soc *ipu, struct device *dev, int id,
 
 	di->clk_lookup = clkdev_alloc(&di->pixel_clk, con_id, "imx-drm.0");
 	clkdev_add(di->clk_lookup);
-	clk_debug_register(&di->pixel_clk);
+//	clk_debug_register(&di->pixel_clk);
 
 	return 0;
 }

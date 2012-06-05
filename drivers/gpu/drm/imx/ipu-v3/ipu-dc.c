@@ -440,6 +440,8 @@ int ipu_dc_init(struct ipu_soc *ipu, struct device *dev,
 	ipu_dc_map_clear(priv, 13);
 	ipu_dc_map_link(priv, 13, 0, 2, 0, 0, 0, 1);
 
+	ipu_get(priv->ipu);
+
 	return 0;
 }
 
