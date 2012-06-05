@@ -1992,6 +1992,9 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "usboh3_clk", usboh3_clk),
 	_REGISTER_CLOCK(NULL, "sata_clk", sata_clk),
 	_REGISTER_CLOCK(NULL, "cko1_clk", cko1_clk),
+	_REGISTER_CLOCK(NULL, "gpu3d_clk", gpu3d_core_clk),
+	_REGISTER_CLOCK(NULL, "gpu2d_clk", gpu2d_core_clk),
+	_REGISTER_CLOCK(NULL, "gpu3d_shader_clk", gpu3d_shader_clk),
 };
 
 int imx6q_set_lpm(enum mxc_cpu_pwr_mode mode)

@@ -58,6 +58,16 @@
 					VDDIO-supply = <&reg_3p3v>;
 				};
 			};
+
+			galcore@virtual {
+				compatible = "viv,galcore";
+				reg =	<0x00130000 0x4000>,	/* gc2000 */
+					<0x00134000 0x4000>,	/* gc320 */
+					<0x02204000 0x4000>;	/* gc355 */
+				interrupts = <	0 9 0x04	/* gc2000 */
+						0 10 0x04	/* gc320 */
+						0 11 0x04>;	/* gc355 */
+			};
 		};
 	};
 

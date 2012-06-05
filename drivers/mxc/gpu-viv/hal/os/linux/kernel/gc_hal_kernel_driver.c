@@ -913,7 +913,7 @@ static int __devinit gpu_probe(struct platform_device *pdev)
         registerMemBase = res->start;
         registerMemSize = res->end - res->start + 1;
     }
-/*
+
     ret = platform_get_irq(pdev, 1);
     if (ret)
         irqLine2D = ret;
@@ -935,7 +935,7 @@ static int __devinit gpu_probe(struct platform_device *pdev)
         registerMemBaseVG = res->start;
         registerMemSizeVG = res->end - res->start + 1;
     }
-*/
+
     pdata = pdev->dev.platform_data;
     if (pdata) {
         contiguousBase = pdata->reserved_mem_base;
@@ -1032,6 +1032,11 @@ static int __devinit gpu_resume(struct platform_device *dev)
     return 0;
 }
 
+static const struct of_device_id mxc_ipu_dt_ids[] = {
+        { .compatible = "viv,galcore" },
+        { /* sentinel */ }
+};
+
 static struct platform_driver gpu_driver = {
     .probe      = gpu_probe,
     .remove     = gpu_remove,
@@ -1041,6 +1046,7 @@ static struct platform_driver gpu_driver = {
 
     .driver     = {
         .name   = DEVICE_NAME,
+        //.of_match_table = mxc_ipu_dt_ids,
     }
 };
 
