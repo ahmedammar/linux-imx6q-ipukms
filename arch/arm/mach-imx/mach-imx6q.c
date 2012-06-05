@@ -29,6 +29,19 @@
 #include <asm/system_misc.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
+#include <linux/memblock.h>
+
+#include <linux/android_pmem.h>
+
+struct platform_device imx6q_pmem_device = {
+	.name = "android_pmem",
+	.id = 0,
+};
+
+static struct android_pmem_platform_data imx6q_pmem_data = {
+	.name = "pmem_gpu",
+	.size = SZ_32M,
+};
 
 void imx6q_restart(char mode, const char *cmd)
 {
@@ -83,7 +96,13 @@ static void __init imx6q_init_machine(void)
 
 	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 
+#ifdef CONFIG_ANDROID_PMEM
+	imx6q_pmem_device.dev.platform_data = &imx6q_pmem_data;
+	platform_device_register(&imx6q_pmem_device);
+#endif
+
 	imx6q_pm_init();
+
 }
 
 static void __init imx6q_map_io(void)
@@ -129,6 +148,19 @@ static struct sys_timer imx6q_timer = {
 	.init = imx6q_timer_init,
 };
 
+
+static void __init imx6q_reserve(void)
+{
+#ifdef CONFIG_ANDROID_PMEM
+	if (imx6q_pmem_data.size) {
+		phys_addr_t phys = memblock_alloc(imx6q_pmem_data.size, SZ_4K);
+		memblock_free(phys, imx6q_pmem_data.size);
+		memblock_remove(phys, imx6q_pmem_data.size);
+		imx6q_pmem_data.start = phys;
+	}
+#endif
+}
+
 static const char *imx6q_dt_compat[] __initdata = {
 	"fsl,imx6q-arm2",
 	"fsl,imx6q-sabrelite",
@@ -144,4 +176,5 @@ DT_MACHINE_START(IMX6Q, "Freescale i.MX6 Quad (Device Tree)")
 	.init_machine	= imx6q_init_machine,
 	.dt_compat	= imx6q_dt_compat,
 	.restart	= imx6q_restart,
+	.reserve 	= imx6q_reserve,
 MACHINE_END
