@@ -594,8 +594,8 @@ EXPORT_SYMBOL_GPL(ipu_idmac_disable_channel);
 static int ipu_reset(struct ipu_soc *ipu)
 {
 	int timeout = 10000;
-	u32 val;
 #if 0
+	u32 val;
 	/* hard reset the IPU */
 	val = readl(MX51_IO_ADDRESS(MX51_SRC_BASE_ADDR));
 	val |= 1 << 3;
@@ -911,7 +911,7 @@ static struct irq_chip ipu_sih_irq_chip = {
 //	.irq_bus_sync_unlock = twl4030_sih_bus_sync_unlock,
 };
 
-irqreturn_t handle_ipusync_pih(int irq, void *devid)
+static irqreturn_t handle_ipusync_pih(int irq, void *devid)
 {
 	struct ipu_soc *ipu = (struct ipu_soc*) devid;
 
@@ -996,6 +996,7 @@ static int ipu_irq_init(struct ipu_soc *ipu)
 		dev_err(ipu->dev, "could not claim irq%d: %d\n", irq, status);
 		goto fail_rqirq;
 	}
+#endif
 	status = request_threaded_irq(ipu->irq_sync, NULL, handle_ipusync_pih,
 				      IRQF_ONESHOT,
 				      "ipu-sync", ipu);
@@ -1003,7 +1004,6 @@ static int ipu_irq_init(struct ipu_soc *ipu)
 		dev_err(ipu->dev, "could not claim irq%d: %d\n", ipu->irq_sync, status);
 		goto fail_rqirq;
 	}
-#endif
 
 	return 0;
 

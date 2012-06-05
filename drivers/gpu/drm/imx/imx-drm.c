@@ -178,7 +178,7 @@ irqreturn_t vsync_irq(int irq, void *dcrtc)
  {
 	struct drm_crtc *crtc = (struct drm_crtc *) dcrtc;
 	struct ipu_crtc *ipu_crtc = to_ipu_crtc(crtc);
-	struct ipu_soc *ipu = ipu_crtc->ipu;
+//	struct ipu_soc *ipu = ipu_crtc->ipu;
 	struct ipu_pageflip *e;
 
 //	printk("%s irq:%i irq_start:%i\n", __func__, irq, ipu->irq_start);
@@ -196,11 +196,9 @@ handled:
 	return IRQ_HANDLED;
 }
 
-extern irqreturn_t handle_ipusync_pih(int irq, void *devid);
-
 static void ipu_fb_enable(struct drm_crtc *crtc)
 {
-	int status;
+	int status, irq;
 	struct ipu_crtc *ipu_crtc = to_ipu_crtc(crtc);
 	struct ipu_soc *ipu = ipu_crtc->ipu;
 
@@ -217,14 +215,11 @@ static void ipu_fb_enable(struct drm_crtc *crtc)
 	ipu_idmac_set_double_buffer(ipu_crtc->ch, true);
 	ipu_crtc->enabled = 1;
 
+	irq = ipu->irq_start + 2 + ipu_crtc->ch->num;
 	printk("request_threaded_irq irq:%i irq_start:%i\n", ipu_crtc->ch->num, ipu->irq_start);
-	request_threaded_irq(ipu->irq_start + 2 + ipu_crtc->ch->num, NULL, vsync_irq, 0, "vsync_irq", ipu_crtc);
-
-	status = request_threaded_irq(ipu->irq_sync, NULL, handle_ipusync_pih,
-				      IRQF_ONESHOT,
-				      "ipu-sync", ipu);
+	status = request_threaded_irq(irq, NULL, vsync_irq, 0, "vsync_irq", ipu_crtc);
 	if (status < 0) {
-		dev_err(ipu->dev, "could not claim irq%d: %d\n", ipu->irq_sync, status);
+		dev_err(ipu->dev, "could not claim irq%d: %d\n", irq, status);
 	}
 }
 
@@ -773,7 +768,7 @@ static int ipu_fbdev_init(struct drm_device *drm)
 
 	drm->mode_config.fb_base = 0xdeadbeef;
 
-	for (i = 0; i < 1; i++) {
+	for (i = 0; i < 2; i++) {
 		ret = ipu_crtc_init(drm, i);
 		if (ret)
 			goto out;
@@ -900,7 +895,7 @@ static int ipu_driver_unload(struct drm_device *drm)
 
 	ipu_ipufb_destroy(drm);
 
-	for (i = 0; i < 1; i++) {
+	for (i = 0; i < 2; i++) {
 		ipu_crtc_cleanup(drm, i);
 
 		if (priv->encon[i])
