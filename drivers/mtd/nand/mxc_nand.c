@@ -520,7 +520,7 @@ static void send_read_id_v3(struct mxc_nand_host *host)
 
 	wait_op_done(host, true);
 
-	memcpy_fromio(host->data_buf, host->main_area0, 16);
+	memcpy(host->data_buf, host->main_area0, 16);
 }
 
 /* Request the NANDFC to perform a read of the NAND device ID. */
@@ -536,7 +536,7 @@ static void send_read_id_v1_v2(struct mxc_nand_host *host)
 	/* Wait for operation to complete */
 	wait_op_done(host, true);
 
-	memcpy_fromio(host->data_buf, host->main_area0, 16);
+	memcpy(host->data_buf, host->main_area0, 16);
 
 	if (this->options & NAND_BUSWIDTH_16) {
 		/* compress the ID info */
@@ -798,16 +798,16 @@ static void copy_spare(struct mtd_info *mtd, bool bfrom)
 
 	if (bfrom) {
 		for (i = 0; i < n - 1; i++)
-			memcpy_fromio(d + i * j, s + i * t, j);
+			memcpy(d + i * j, s + i * t, j);
 
 		/* the last section */
-		memcpy_fromio(d + i * j, s + i * t, mtd->oobsize - i * j);
+		memcpy(d + i * j, s + i * t, mtd->oobsize - i * j);
 	} else {
 		for (i = 0; i < n - 1; i++)
-			memcpy_toio(&s[i * t], &d[i * j], j);
+			memcpy(&s[i * t], &d[i * j], j);
 
 		/* the last section */
-		memcpy_toio(&s[i * t], &d[i * j], mtd->oobsize - i * j);
+		memcpy(&s[i * t], &d[i * j], mtd->oobsize - i * j);
 	}
 }
 
@@ -1073,7 +1073,7 @@ static void mxc_nand_command(struct mtd_info *mtd, unsigned command,
 
 		host->devtype_data->send_page(mtd, NFC_OUTPUT);
 
-		memcpy_fromio(host->data_buf, host->main_area0, mtd->writesize);
+		memcpy(host->data_buf, host->main_area0, mtd->writesize);
 		copy_spare(mtd, true);
 		break;
 
@@ -1089,7 +1089,7 @@ static void mxc_nand_command(struct mtd_info *mtd, unsigned command,
 		break;
 
 	case NAND_CMD_PAGEPROG:
-		memcpy_toio(host->main_area0, host->data_buf, mtd->writesize);
+		memcpy(host->main_area0, host->data_buf, mtd->writesize);
 		copy_spare(mtd, false);
 		host->devtype_data->send_page(mtd, NFC_INPUT);
 		host->devtype_data->send_cmd(host, command, true);
