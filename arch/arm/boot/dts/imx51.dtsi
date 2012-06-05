@@ -58,6 +58,12 @@
 		interrupt-parent = <&tzic>;
 		ranges;
 
+		ipu@5e000000 {
+			compatible = "fsl,imx51-ipu";
+			reg = <0x5e000000 0x02000000>;
+			interrupts = <11 10>;
+		};
+
 		aips@70000000 { /* AIPS1 */
 			compatible = "fsl,aips-bus", "simple-bus";
 			#address-cells = <1>;
