@@ -317,7 +317,7 @@ int colorspace_conversion_task(struct ipu_soc *ipu, struct drm_imx_ipu_queue *ar
 	channel_in = ipu_idmac_get(ipu, res->ipu_channel_in);
 	channel_out = ipu_idmac_get(ipu, res->ipu_channel_out);
 
-	ret = request_threaded_irq(ipu->irq_start + channel_out->num, NULL, \
+	ret = request_threaded_irq(ipu->irq_start + 2 + channel_out->num, NULL, \
 		task_irq_handler, 0, "task_irq", &comp);
 	if (ret)
 	    goto out;
@@ -387,7 +387,7 @@ int colorspace_conversion_task(struct ipu_soc *ipu, struct drm_imx_ipu_queue *ar
 
 	printk("disable everything\n");
 
-	free_irq(ipu->irq_start + channel_out->num, &comp);
+	free_irq(ipu->irq_start + 2 + channel_out->num, &comp);
 
 	ipu_module_disable(ipu, IPU_CONF_IC_EN);
 

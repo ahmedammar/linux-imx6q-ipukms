@@ -981,6 +981,8 @@ static int __devinit ipu_drm_probe(struct platform_device *pdev)
 {
 	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 
+	driver.num_ioctls = DRM_ARRAY_SIZE(ipu_ioctls);
+
 	return drm_platform_init(&driver, pdev);
 }
 
