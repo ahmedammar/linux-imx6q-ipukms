@@ -27,6 +27,7 @@
 #include <linux/mm.h>
 #include <linux/mman.h>
 #include <linux/slab.h>
+#include <linux/types.h>
 
 #define _GC_OBJ_ZONE    gcvZONE_DEVICE
 
@@ -955,6 +956,7 @@ gckGALDEVICE_Destroy(
             if (Device->requestedContiguousBase != 0)
             {
                 release_mem_region(Device->requestedContiguousBase, Device->requestedContiguousSize);
+
                 Device->requestedContiguousBase = 0;
                 Device->requestedContiguousSize = 0;
             }
@@ -973,10 +975,10 @@ gckGALDEVICE_Destroy(
             {
                 /* Unmap register memory. */
                 iounmap(Device->registerBases[i]);
-			    if (Device->requestedRegisterMemBases[i] != 0)
-			    {
-				    release_mem_region(Device->requestedRegisterMemBases[i], Device->requestedRegisterMemSizes[i]);
-			    }
+                if (Device->requestedRegisterMemBases[i] != 0)
+                {
+                    release_mem_region(Device->requestedRegisterMemBases[i], Device->requestedRegisterMemSizes[i]);
+                }
 
                 Device->registerBases[i] = gcvNULL;
                 Device->requestedRegisterMemBases[i] = 0;
