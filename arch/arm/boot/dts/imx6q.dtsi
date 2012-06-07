@@ -730,6 +730,16 @@
 			};
 		};
 
+		galcore@00130000 {
+			compatible = "viv,galcore";
+			reg =	<0x00130000 0x4000>,	/* gc2000 */
+				<0x00134000 0x4000>,	/* gc320 */
+				<0x02204000 0x4000>;	/* gc355 */
+			interrupts = <	0 9 0x04	/* gc2000 */
+					0 10 0x04	/* gc320 */
+					0 11 0x04>;	/* gc355 */
+		};
+
 		ipu@02600000 {
 			compatible = "fsl,imx6q-ipu";
 			reg = <0x02600000 0x400000>;

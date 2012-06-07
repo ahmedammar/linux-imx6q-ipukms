@@ -23,6 +23,7 @@
 #include <linux/of_platform.h>
 #include <linux/pinctrl/machine.h>
 #include <linux/phy.h>
+#include <linux/memblock.h>
 #include <linux/micrel_phy.h>
 #include <asm/smp_twd.h>
 #include <asm/hardware/cache-l2x0.h>
@@ -32,6 +33,11 @@
 #include <asm/system_misc.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
+#include <mach/viv_gpu.h>
+
+static struct viv_gpu_platform_data gpu_pdata = {
+	.reserved_mem_size = SZ_128M,
+};
 
 void imx6q_restart(char mode, const char *cmd)
 {
@@ -124,7 +130,8 @@ static void __init imx6q_init_machine(void)
 	if (of_machine_is_compatible("fsl,imx6q-sabrelite"))
 		imx6q_sabrelite_init();
 
-	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
+	of_platform_populate(NULL, of_default_bus_match_table,
+					NULL, NULL);
 
 	imx6q_pm_init();
 }
@@ -172,6 +179,17 @@ static struct sys_timer imx6q_timer = {
 	.init = imx6q_timer_init,
 };
 
+static void __init imx6q_reserve(void)
+{
+	if (gpu_pdata.reserved_mem_size) {
+		phys_addr_t phys = memblock_alloc_base(gpu_pdata.reserved_mem_size,
+					   SZ_4K, SZ_1G);
+		memblock_free(phys, gpu_pdata.reserved_mem_size);
+		memblock_remove(phys, gpu_pdata.reserved_mem_size);
+		gpu_pdata.reserved_mem_base = phys;
+	}
+};
+
 static const char *imx6q_dt_compat[] __initdata = {
 	"fsl,imx6q-arm2",
 	"fsl,imx6q-sabrelite",
@@ -185,6 +203,7 @@ DT_MACHINE_START(IMX6Q, "Freescale i.MX6 Quad (Device Tree)")
 	.init_irq	= imx6q_init_irq,
 	.handle_irq	= imx6q_handle_irq,
 	.timer		= &imx6q_timer,
+	.reserve 	= imx6q_reserve,
 	.init_machine	= imx6q_init_machine,
 	.dt_compat	= imx6q_dt_compat,
 	.restart	= imx6q_restart,
