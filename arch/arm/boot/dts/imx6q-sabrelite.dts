@@ -91,6 +91,12 @@
 				};
 			};
 		};
+
+		aips-bus@02000000 { /* AIPS1 */
+			lvds@020e0000 {
+				crtcs = <0x1 0x2>;
+			};
+		};
 	};
 
 	regulators {
