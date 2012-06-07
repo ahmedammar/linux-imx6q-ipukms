@@ -387,6 +387,11 @@ int __init mx6q_clocks_init(void)
 			pr_err("i.MX6q clk %d: register failed with %ld\n",
 				i, PTR_ERR(clk[i]));
 
+	clk_set_parent(clk[ldb_di0_sel], clk[ipu1_di0]);
+	__clk_set_flags(clk[ldb_di0_sel], CLK_SET_RATE_PARENT);
+	clk_set_parent(clk[ldb_di1_sel], clk[ipu1_di1]);
+	__clk_set_flags(clk[ldb_di1_sel], CLK_SET_RATE_PARENT);
+
 	clk_register_clkdev(clk[mmdc_ch0_axi], NULL, "mmdc_ch0_axi");
 	clk_register_clkdev(clk[mmdc_ch1_axi], NULL, "mmdc_ch1_axi");
 	clk_register_clkdev(clk[gpt_ipg], "ipg", "imx-gpt.0");
@@ -423,6 +428,15 @@ int __init mx6q_clocks_init(void)
 	clk_register_clkdev(clk[cko1_sel], "cko1_sel", NULL);
 	clk_register_clkdev(clk[ahb], "ahb", NULL);
 	clk_register_clkdev(clk[cko1], "cko1", NULL);
+	clk_register_clkdev(clk[ipu1], "bus", "2600000.ipu");
+	clk_register_clkdev(clk[ipu1_di0], "di0", "2600000.ipu");
+	clk_register_clkdev(clk[ipu1_di1], "di1", "2600000.ipu");
+	clk_register_clkdev(clk[ldb_di0], "di0", "20e0000.lvds");
+	clk_register_clkdev(clk[ldb_di1], "di1", "20e0000.lvds");
+	clk_register_clkdev(clk[ipu1_di0_sel], "di0_sel", "20e0000.lvds");
+	clk_register_clkdev(clk[ipu1_di1_sel], "di1_sel", "20e0000.lvds");
+	clk_register_clkdev(clk[ldb_di0_sel], "di0_pll", "20e0000.lvds");
+	clk_register_clkdev(clk[ldb_di1_sel], "di1_pll", "20e0000.lvds");
 
 	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++) {
 		c = clk_get_sys(clks_init_on[i], NULL);
