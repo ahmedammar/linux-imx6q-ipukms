@@ -900,7 +900,7 @@ static int __devinit gpu_probe(struct platform_device *pdev)
 {
     int ret = -ENODEV;
     struct resource* res;
-    struct viv_gpu_platform_data *pdata;
+    //struct viv_gpu_platform_data *pdata;
 
     gcmkHEADER();
 
@@ -938,15 +938,15 @@ static int __devinit gpu_probe(struct platform_device *pdev)
         registerMemBaseVG = res->start;
         registerMemSizeVG = res->end - res->start + 1;
     }
-
+#if 0
     pdata = pdev->dev.platform_data;
     if (pdata) {
         contiguousBase = pdata->reserved_mem_base;
         contiguousSize = pdata->reserved_mem_size;
      }
+#endif
 
     ret = drv_init(pdev);
-
     if (!ret)
     {
         platform_set_drvdata(pdev, galDevice);

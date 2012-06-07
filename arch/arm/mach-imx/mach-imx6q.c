@@ -181,6 +181,7 @@ static struct sys_timer imx6q_timer = {
 
 static void __init imx6q_reserve(void)
 {
+#if 0
 	if (gpu_pdata.reserved_mem_size) {
 		phys_addr_t phys = memblock_alloc_base(gpu_pdata.reserved_mem_size,
 					   SZ_4K, SZ_1G);
@@ -188,6 +189,7 @@ static void __init imx6q_reserve(void)
 		memblock_remove(phys, gpu_pdata.reserved_mem_size);
 		gpu_pdata.reserved_mem_base = phys;
 	}
+#endif
 };
 
 static const char *imx6q_dt_compat[] __initdata = {
