@@ -31,6 +31,7 @@
 #include <drm/drm_fb_cma_helper.h>
 #include <asm/fb.h>
 
+#include "ipu-v3/ipu-prv.h"
 #include "imx-drm.h"
 
 #define DRIVER_DESC		"i.MX IPUv3 Graphics"
@@ -525,6 +526,7 @@ struct imx_drm_crtc_helper_funcs ipu_crtc_helper_funcs = {
 
 static int ipu_crtc_init(struct ipu_priv *ipu_priv, struct ipu_crtc *ipu_crtc, int num)
 {
+	char *irq_name;
 	int ret;
 
 	ipu_crtc->pipe = num;
@@ -547,8 +549,12 @@ static int ipu_crtc_init(struct ipu_priv *ipu_priv, struct ipu_crtc *ipu_crtc, i
 	}
 
 	ipu_crtc->irq = platform_get_irq(to_platform_device(ipu_priv->dev), num);
+	irq_name = kasprintf(GFP_KERNEL, "%s-ch%i-di%i",
+			ipu_priv->dev->driver->name,
+			ipu_crtc->ipu_ch->num,
+			num);
 	ret = devm_request_irq(ipu_priv->dev, ipu_crtc->irq, ipu_irq_handler, 0,
-			"imx_drm", ipu_crtc);
+			irq_name, ipu_crtc);
 	if (ret < 0) {
 		dev_err(ipu_priv->dev, "irq request failed with %d.\n", ret);
 		goto err_put_resources;
