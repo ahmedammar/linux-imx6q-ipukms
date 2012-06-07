@@ -58,6 +58,12 @@
 		interrupt-parent = <&tzic>;
 		ranges;
 
+		ipu@5e000000 {
+			compatible = "fsl,imx51-ipu";
+			reg = <0x5e000000 0x02000000>;
+			interrupts = <11 10>;
+		};
+
 		aips@70000000 { /* AIPS1 */
 			compatible = "fsl,aips-bus", "simple-bus";
 			#address-cells = <1>;
@@ -256,6 +262,13 @@
 			audmux@83fd0000 {
 				compatible = "fsl,imx51-audmux", "fsl,imx31-audmux";
 				reg = <0x83fd0000 0x4000>;
+				status = "disabled";
+			};
+
+			nand@83fdb000 {
+				compatible = "fsl,imx51-nand";
+				reg = <0x83fdb000 0x1000 0xcfff0000 0x10000>;
+				interrupts = <8>;
 				status = "disabled";
 			};
 

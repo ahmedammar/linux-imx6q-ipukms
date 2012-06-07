@@ -60,6 +60,12 @@
 		interrupt-parent = <&tzic>;
 		ranges;
 
+		ipu@1e000000 {
+			compatible = "fsl,imx53-ipu";
+			reg = <0x1e000000 0x020000000>;
+			interrupts = <11 10>;
+		};
+
 		aips@50000000 { /* AIPS1 */
 			compatible = "fsl,aips-bus", "simple-bus";
 			#address-cells = <1>;
@@ -180,6 +186,11 @@
 				reg = <0x53f9c000 0x4000>;
 				interrupts = <59>;
 				status = "disabled";
+			};
+
+			lvds@53fa8008 {
+				compatible = "fsl,imx-ldb";
+				reg = <0x53fa8008 0x4>;
 			};
 
 			uart1: serial@53fbc000 {
@@ -312,6 +323,15 @@
 				compatible = "fsl,imx53-audmux", "fsl,imx31-audmux";
 				reg = <0x63fd0000 0x4000>;
 				status = "disabled";
+			};
+
+			nand@63fdb000 {
+				compatible = "fsl,imx53-nand";
+				reg = <0x63fdb000 0x1000 0xf7ff0000 0x10000>;
+				interrupts = <8>;
+				status = "ok";
+				nand-ecc-mode = "hw";
+				nand-on-flash-bbt;
 			};
 
 			ssi3: ssi@63fe8000 {

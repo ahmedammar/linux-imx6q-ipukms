@@ -22,6 +22,18 @@
 	};
 
 	soc {
+		display@di0 {
+			compatible = "fsl,imx-parallel-display";
+			crtcs = <0x1>;
+			interface_pix_fmt = "rgb24";
+		};
+
+		display@di1 {
+			compatible = "fsl,imx-parallel-display";
+			crtcs = <0x2>;
+			interface_pix_fmt = "rgb565";
+		};
+
 		aips@70000000 { /* aips-1 */
 			spba@70000000 {
 				esdhc@70004000 { /* ESDHC1 */

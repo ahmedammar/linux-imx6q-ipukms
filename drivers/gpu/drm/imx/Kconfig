@@ -1,0 +1,34 @@
+config DRM_IMX
+	tristate "DRM Support for Freescale i.MX"
+	select DRM_KMS_HELPER
+	select DRM_GEM_CMA_HELPER
+	depends on DRM && ARCH_MXC
+
+config DRM_IMX_FB_HELPER
+	tristate "provide legacy framebuffer /dev/fb0"
+	select DRM_KMS_CMA_HELPER
+	depends on DRM_IMX
+
+config DRM_IMX_LCDC
+	tristate "DRM Support for Freescale i.MX1 and i.MX2"
+	depends on DRM_IMX
+	help
+	  Choose this if you have a i.MX1, i.MX21, i.MX25 or i.MX27 processor.
+
+config DRM_IMX_PARALLEL_DISPLAY
+	tristate "Support for parallel displays"
+	depends on DRM_IMX
+
+config DRM_IMX_LDB
+	tristate "Support for LVDS displays"
+	depends on DRM_IMX
+
+config DRM_IMX_IPUV3_CORE
+	tristate "IPUv3 core support"
+	depends on DRM_IMX
+
+config DRM_IMX_IPUV3
+	tristate "DRM Support for i.MX IPUv3"
+	depends on DRM_IMX
+	help
+	  Choose this if you have a i.MX5 or i.MX6 processor.

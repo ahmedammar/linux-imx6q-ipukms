@@ -540,6 +540,11 @@
 				};
 			};
 
+			lvds@020e0000 {
+				compatible = "fsl,imx-ldb";
+				reg = <0x020e0000 0x4>;
+			};
+
 			dcic@020e4000 { /* DCIC1 */
 				reg = <0x020e4000 0x4000>;
 				interrupts = <0 124 0x04>;
@@ -723,6 +728,12 @@
 				interrupts = <0 30 0x04>;
 				status = "disabled";
 			};
+		};
+
+		ipu@02600000 {
+			compatible = "fsl,imx6q-ipu";
+			reg = <0x02600000 0x400000>;
+			interrupts = <0 6 0x04 0 5 0x04>; /* reversed on mx6 */
 		};
 	};
 };

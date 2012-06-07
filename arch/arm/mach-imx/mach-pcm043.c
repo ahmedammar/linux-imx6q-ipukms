@@ -302,6 +302,7 @@ static const struct mxc_nand_platform_data
 pcm037_nand_board_info __initconst = {
 	.width = 1,
 	.hw_ecc = 1,
+	.flash_bbt = 1,
 };
 
 static int pcm043_otg_init(struct platform_device *pdev)
