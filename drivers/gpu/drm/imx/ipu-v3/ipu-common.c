@@ -651,6 +651,12 @@ static int ipu_submodules_init(struct ipu_soc *ipu, struct platform_device *pdev
 	int ret;
 	struct device *dev = &pdev->dev;
 	struct ipu_devtype *devtype = ipu->devtype;
+ 
+	ret = ipu_ic_init(ipu, dev, ipu_base + devtype->tpm_ofs);
+	if (ret) {
+		unit = "ic";
+		goto err_ic;
+	}
 
 	ret = ipu_di_init(ipu, dev, 0, ipu_base + devtype->disp0_ofs,
 			IPU_CONF_DI0_EN, ipu_clk);
@@ -695,7 +701,9 @@ err_dc:
 	ipu_di_exit(ipu, 1);
 err_di_1:
 	ipu_di_exit(ipu, 0);
-err_d1_0:
+err_di_0:
+	ipu_ic_exit(ipu);
+err_ic:
 	dev_err(&pdev->dev, "init %s failed with %d\n", unit, ret);
 	return ret;
 }
@@ -792,6 +800,7 @@ static void ipu_submodules_exit(struct ipu_soc *ipu)
 	ipu_dc_exit(ipu);
 	ipu_di_exit(ipu, 1);
 	ipu_di_exit(ipu, 0);
+	ipu_ic_exit(ipu);
 }
 
 static int platform_remove_devices_fn(struct device *dev, void *unused)
@@ -841,7 +850,6 @@ static int ipu_add_client_devices(struct ipu_soc *ipu)
 	ret |= ipu_add_subdevice_pdata(ipu->dev, "imx-ipuv3-crtc", 0, NULL,
 			ipu->irq_start + IPU_IRQ_EOF(IPUV3_CHANNEL_MEM_BG_SYNC),
 			ipu->irq_start + IPU_IRQ_EOF(IPUV3_CHANNEL_MEM_DC_SYNC));
-
 	if (ret)
 		platform_device_unregister_children(to_platform_device(ipu->dev));
 
@@ -938,9 +946,10 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 
 	ipu->cm_reg = devm_ioremap(&pdev->dev, ipu_base + IPU_CM_REG_BASE, PAGE_SIZE);
 	ipu->idmac_reg = devm_ioremap(&pdev->dev, ipu_base + IPU_IDMAC_REG_BASE, PAGE_SIZE);
+	ipu->ic_reg = devm_ioremap(&pdev->dev, ipu_base + IPU_IC_REG_BASE, PAGE_SIZE);
 	ipu->cpmem_base = devm_ioremap(&pdev->dev, ipu_base + devtype->cpmem_ofs, PAGE_SIZE);
 
-	if (!ipu->cm_reg || !ipu->idmac_reg || !ipu->cpmem_base) {
+	if (!ipu->cm_reg || !ipu->idmac_reg || !ipu->cpmem_base || !ipu->ic_reg) {
 		ret = -ENOMEM;
 		goto failed_ioremap;
 	}

@@ -21,6 +21,7 @@ struct ipu_soc;
 #include <linux/device.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
+#include <drm/drmP.h>
 #include <drm/imx-ipu-v3.h>
 #include <mach/hardware.h>
 
@@ -157,6 +158,7 @@ struct ipuv3_channel {
 struct ipu_dc_priv;
 struct ipu_dmfc_priv;
 struct ipu_di;
+struct ipu_ic;
 struct ipu_devtype;
 
 struct ipu_soc {
@@ -168,6 +170,7 @@ struct ipu_soc {
 
 	void __iomem		*cm_reg;
 	void __iomem		*idmac_reg;
+	void __iomem		*ic_reg;
 	struct ipu_ch_param	*cpmem_base;
 
 	int			usecount;
@@ -184,6 +187,7 @@ struct ipu_soc {
 	struct ipu_dp_priv	*dp_priv;
 	struct ipu_dmfc_priv	*dmfc_priv;
 	struct ipu_di		*di_priv[2];
+	struct ipu_ic		*ic_priv;
 };
 
 void ipu_srm_dp_sync_update(struct ipu_soc *ipu);
@@ -208,5 +212,8 @@ void ipu_dc_exit(struct ipu_soc *ipu);
 
 int ipu_cpmem_init(struct ipu_soc *ipu, struct device *dev, unsigned long base);
 void ipu_cpmem_exit(struct ipu_soc *ipu);
+
+int ipu_ic_init(struct ipu_soc *ipu, struct device *dev, unsigned long base);
+void ipu_ic_exit(struct ipu_soc *ipu);
 
 #endif				/* __IPU_PRV_H__ */

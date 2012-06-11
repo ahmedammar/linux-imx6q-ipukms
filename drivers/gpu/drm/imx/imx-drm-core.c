@@ -24,8 +24,10 @@
 #include <linux/module.h>
 #include <drm/drm_gem_cma_helper.h>
 #include <drm/drm_fb_cma_helper.h>
+#include <drm/imx-ipu-v3-ioctls.h>
 
 #include "imx-drm.h"
+#include "ipu-v3/ipu-prv.h"
 
 #define MAX_CRTC	4
 
@@ -677,7 +679,7 @@ int imx_drm_remove_connector(struct imx_drm_connector *imx_drm_connector)
 EXPORT_SYMBOL_GPL(imx_drm_remove_connector);
 
 static struct drm_ioctl_desc imx_drm_ioctls[] = {
-	/* none so far */
+	DRM_IOCTL_DEF_DRV(IMX_IPU_QUEUE, ipu_task_queue_ioctl, DRM_AUTH),
 };
 
 static struct drm_driver imx_drm_driver = {
@@ -751,6 +753,7 @@ static int __init imx_drm_init(void)
 		return ret;
 
 	return 0;
+
 }
 
 static void __exit imx_drm_exit(void)
