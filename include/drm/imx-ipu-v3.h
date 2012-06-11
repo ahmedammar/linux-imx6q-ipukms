@@ -18,6 +18,7 @@
 #include <linux/fb.h>
 #include <mach/hardware.h>
 #include <linux/videodev2.h>
+#include <drm/drmP.h>
 
 struct ipu_soc;
 
@@ -156,6 +157,16 @@ int ipu_dp_setup_channel(struct ipu_dp *dp,
 int ipu_dp_set_window_pos(struct ipu_dp *, u16 x_pos, u16 y_pos);
 int ipu_dp_set_global_alpha(struct ipu_dp *dp, bool enable, u8 alpha,
 		bool bg_chan);
+
+/* 
+ * IPU Image Converter (ic) functions
+ */
+struct ipu_ic *ipu_ic_get(struct ipu_soc *ipu);
+void ipu_ic_put(struct ipu_ic *ic);
+
+int ipu_task_queue_ioctl(struct drm_device *drm, void *data,
+		struct drm_file *file_priv);
+
 
 #define IPU_CPMEM_WORD(word, ofs, size) ((((word) * 160 + (ofs)) << 8) | (size))
 
