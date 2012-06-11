@@ -695,7 +695,7 @@ err_dc:
 	ipu_di_exit(ipu, 1);
 err_di_1:
 	ipu_di_exit(ipu, 0);
-err_di_0:
+err_d1_0:
 	dev_err(&pdev->dev, "init %s failed with %d\n", unit, ret);
 	return ret;
 }
@@ -833,7 +833,8 @@ static int ipu_add_client_devices(struct ipu_soc *ipu)
 {
 	int ret;
 
-	ret = ipu_add_subdevice_pdata(ipu->dev, "imx-ipuv3-ovl", 0, NULL,
+	ret = ipu_add_subdevice_pdata(ipu->dev, "imx-drm", 0, NULL, 0, 0);
+	ret |= ipu_add_subdevice_pdata(ipu->dev, "imx-ipuv3-ovl", 0, NULL,
 			ipu->irq_start + IPU_IRQ_EOF(IPUV3_CHANNEL_MEM_FG_SYNC), 0);
 	ret |= ipu_add_subdevice_pdata(ipu->dev, "imx-ipuv3-camera", 0, NULL,
 			ipu->irq_start + IPU_IRQ_EOF(IPUV3_CHANNEL_CSI0), 0);
@@ -1015,7 +1016,18 @@ static struct platform_driver imx_ipu_driver = {
 	.remove = __devexit_p(ipu_remove),
 };
 
-module_platform_driver(imx_ipu_driver);
+int __init imx_ipu_init(void)
+{
+	return platform_driver_register(&imx_ipu_driver);
+}
+
+void __exit imx_ipu_exit(void)
+{
+	platform_driver_unregister(&imx_ipu_driver);
+}
+
+device_initcall(imx_ipu_init);
+module_exit(imx_ipu_exit);
 
 MODULE_DESCRIPTION("i.MX IPU v3 driver");
 MODULE_AUTHOR("Sascha Hauer <s.hauer@pengutronix.de>");
