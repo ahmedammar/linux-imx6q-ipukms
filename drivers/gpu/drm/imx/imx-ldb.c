@@ -338,7 +338,18 @@ static struct platform_driver imx_ldb_driver = {
 	},
 };
 
-module_platform_driver(imx_ldb_driver);
+int __init imx_ldb_init(void)
+{
+	return platform_driver_register(&imx_ldb_driver);
+}
+
+void __exit imx_ldb_exit(void)
+{
+	platform_driver_unregister(&imx_ldb_driver);
+}
+
+late_initcall(imx_ldb_init);
+module_exit(imx_ldb_exit);
 
 MODULE_DESCRIPTION("i.MX LVDS driver");
 MODULE_AUTHOR("Sascha Hauer, Pengutronix");

@@ -809,6 +809,8 @@ static struct drm_driver imx_drm_driver = {
 
 static int imx_drm_platform_probe(struct platform_device *pdev)
 {
+	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
+
 	imx_drm_device->dev = &pdev->dev;
 
 	return drm_platform_init(&imx_drm_driver, pdev);
@@ -830,7 +832,6 @@ static struct platform_driver imx_drm_pdrv = {
 	},
 };
 
-static struct platform_device *imx_drm_pdev;
 
 static int __init imx_drm_init(void)
 {
@@ -845,31 +846,15 @@ static int __init imx_drm_init(void)
 	INIT_LIST_HEAD(&imx_drm_device->connector_list);
 	INIT_LIST_HEAD(&imx_drm_device->encoder_list);
 
-	imx_drm_pdev = platform_device_register_simple("imx-drm", -1, NULL, 0);
-	if (!imx_drm_pdev) {
-		ret = -EINVAL;
-		goto err_pdev;
-	}
-
-	imx_drm_pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32),
-
 	ret = platform_driver_register(&imx_drm_pdrv);
 	if (ret)
-		goto err_pdrv;
+		return ret;
 
 	return 0;
-
-err_pdrv:
-	platform_device_unregister(imx_drm_pdev);
-err_pdev:
-	kfree(imx_drm_device);
-
-	return ret;
 }
 
 static void __exit imx_drm_exit(void)
 {
-	platform_device_unregister(imx_drm_pdev);
 	platform_driver_unregister(&imx_drm_pdrv);
 
 	kfree(imx_drm_device);

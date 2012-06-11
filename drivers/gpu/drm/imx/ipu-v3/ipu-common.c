@@ -30,7 +30,6 @@
 #include <asm/mach/irq.h>
 
 #include "ipu-prv.h"
-
 static inline u32 ipu_cm_read(struct ipu_soc *ipu, unsigned offset)
 {
 	return readl(ipu->cm_reg + offset);
@@ -866,6 +865,8 @@ struct ipu_platform_reg {
 
 static const struct ipu_platform_reg client_reg[] = {
 	{
+		.name = "imx-drm",
+	}, {
 		.pdata = {
 			.di = 0,
 			.dc = 5,
@@ -1104,7 +1105,18 @@ static struct platform_driver imx_ipu_driver = {
 	.remove = __devexit_p(ipu_remove),
 };
 
-module_platform_driver(imx_ipu_driver);
+int __init imx_ipu_init(void)
+{
+	return platform_driver_register(&imx_ipu_driver);
+}
+
+void __exit imx_ipu_exit(void)
+{
+	platform_driver_unregister(&imx_ipu_driver);
+}
+
+device_initcall(imx_ipu_init);
+module_exit(imx_ipu_exit);
 
 MODULE_DESCRIPTION("i.MX IPU v3 driver");
 MODULE_AUTHOR("Sascha Hauer <s.hauer@pengutronix.de>");
