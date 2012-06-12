@@ -144,47 +144,34 @@ void ipu_ic_write(struct ipu_soc *ipu, u32 value, unsigned offset)
 	writel(value, ipu->ic_reg + offset);
 }
 
-static void _init_csc(struct ipu_ic *ic)
+static void init_csc(struct ipu_ic *ic, uint32_t **csc_coeff)
 {
 	uint32_t param;
 	uint32_t *base = NULL;
 
-	base = ic->base + 0x6060;
+	base = ic->base + 0x6060; /* FIXME */
 
-	/*
-	 * R = (1.164 * (Y - 16)) + (1.596 * (Cr - 128));
-	 * G = (1.164 * (Y - 16)) - (0.392 * (Cb - 128)) - (0.813 * (Cr - 128));
-	 * B = (1.164 * (Y - 16)) + (2.017 * (Cb - 128); 
-	 */
-	static const uint32_t ycbcr2rgb_coeff[4][3] = {
-		{149, 0, 204},
-		{149, 462, 408},
-		{149, 255, 0},
-		{8192 - 446, 266, 8192 - 554},	/* A0, A1, A2 */
-	};
-
-
-	/* Init CSC (YCbCr->RGB) */
-	param = (ycbcr2rgb_coeff[3][0] << 27) |
-		(ycbcr2rgb_coeff[0][0] << 18) |
-		(ycbcr2rgb_coeff[1][1] << 9) | ycbcr2rgb_coeff[2][2];
+	param = (csc_coeff[3][0] << 27) |
+		(csc_coeff[0][0] << 18) |
+		(csc_coeff[1][1] << 9) | csc_coeff[2][2];
 	writel(param, base++);
+
 	/* scale = 2, sat = 0 */
-	param = (ycbcr2rgb_coeff[3][0] >> 5) | (2L << (40 - 32));
+	param = (csc_coeff[3][0] >> 5) | (2L << (40 - 32));
 	writel(param, base++);
 
-	param = (ycbcr2rgb_coeff[3][1] << 27) |
-		(ycbcr2rgb_coeff[0][1] << 18) |
-		(ycbcr2rgb_coeff[1][0] << 9) | ycbcr2rgb_coeff[2][0];
+	param = (csc_coeff[3][1] << 27) |
+		(csc_coeff[0][1] << 18) |
+		(csc_coeff[1][0] << 9) | csc_coeff[2][0];
 	writel(param, base++);
-	param = (ycbcr2rgb_coeff[3][1] >> 5);
+	param = (csc_coeff[3][1] >> 5);
 	writel(param, base++);
 
-	param = (ycbcr2rgb_coeff[3][2] << 27) |
-		(ycbcr2rgb_coeff[0][2] << 18) |
-		(ycbcr2rgb_coeff[1][2] << 9) | ycbcr2rgb_coeff[2][1];
+	param = (csc_coeff[3][2] << 27) |
+		(csc_coeff[0][2] << 18) |
+		(csc_coeff[1][2] << 9) | csc_coeff[2][1];
 	writel(param, base++);
-	param = (ycbcr2rgb_coeff[3][2] >> 5);
+	param = (csc_coeff[3][2] >> 5);
 	writel(param, base++);
 }
 
@@ -196,7 +183,7 @@ static irqreturn_t task_irq_handler(int irq, void *dcond)
 	return IRQ_HANDLED;
 }
 
-extern struct drm_gem_cma_object *cma_objs[16]; //!!!
+extern struct drm_gem_cma_object *cma_objs[16]; /* FIXME */
 
 int ipu_ic_init(struct ipu_soc *ipu, struct device *dev, unsigned long base)
 {
@@ -225,7 +212,7 @@ void ipu_ic_exit(struct ipu_soc *ipu)
 {
 }
 
-int colorspace_conversion_task(struct drm_device *drm, struct ipu_soc *ipu, struct drm_imx_ipu_queue *args)
+int  colorspace_conversion_task(struct drm_device *drm, struct ipu_soc *ipu, struct drm_imx_ipu_queue *args)
 {
 	struct ipu_ic_resource *res;
 	struct ipuv3_channel *channel_in, *channel_out;
@@ -233,12 +220,12 @@ int colorspace_conversion_task(struct drm_device *drm, struct ipu_soc *ipu, stru
 	uint32_t ipu_ic_conf, ipu_ic_idmac_1, ipu_ic_idmac_2, ipu_ic_idmac_3;
 	ipu_color_space_t format_in, format_out;
 	struct completion comp;
-	int ret = 0;
+	int ret = 0, i;
 
 	struct ipu_ic *ic = ipu_ic_get(ipu);
 	if(IS_ERR(ic)) {
 		dev_err(ipu->dev, "ipu_ic_get failed.\n");
-		return;
+		return -1;
 	}
 
 	init_completion(&comp);
@@ -251,7 +238,18 @@ int colorspace_conversion_task(struct drm_device *drm, struct ipu_soc *ipu, stru
 	cpmem_in = ipu_get_cpmem(channel_in);
 	cpmem_out = ipu_get_cpmem(channel_out);
 
-	_init_csc(ic);//, 0/*unused*/, args->in_pix, args->out_pix, 1);
+	uint32_t **coeffs = kcalloc(4, sizeof(uint32_t *), GFP_KERNEL);
+	for(i = 0; i < 4; i++) {
+		coeffs[i] = kcalloc(3, sizeof(uint32_t), GFP_KERNEL);
+		ret = copy_from_user(coeffs[i], args->csc_coeffs[i], 3 * sizeof(uint32_t));
+		dev_dbg(ipu->dev, "ic: to:%p form:%p\n", coeffs[i], args->csc_coeffs[i]);
+		if (ret) {
+			dev_err(ipu->dev, "copy_from_user failed. (%d/%d)\n", ret, 3*sizeof(uint32_t));
+			return -ret;
+		}
+	}
+
+	init_csc(ic, coeffs);
 
 	dev_dbg(ipu->dev, "colorspace_conversion_task:\n");
 	dev_dbg(ipu->dev, "\tinput:\n");
@@ -266,22 +264,7 @@ int colorspace_conversion_task(struct drm_device *drm, struct ipu_soc *ipu, stru
 	dev_dbg(ipu->dev, "\t\tpix.bytesperline: %d\n", args->output.pix.bytesperline);
 	dev_dbg(ipu->dev, "\t\tpix.width: %d\n", args->output.pix.width);
 	dev_dbg(ipu->dev, "\t\tpix.height: %d\n", args->output.pix.height);
-#if 0
-	struct ipu_image i0, i1;
-	i0.phys = cma_objs[args->in_paddr]->paddr;
-	i1.phys = cma_objs[args->out_paddr]->paddr;
-	//printk("i0: %x i1: %x\n", i0.phys, i1.phys);
-	i0.pix.pixelformat = args->in_pix;
-	i1.pix.pixelformat = args->out_pix;
-	i0.pix.width = i1.pix.width = i0.rect.width = i1.rect.width = args->in_w;
-	i0.pix.height = i1.pix.height = i0.rect.height = i1.rect.height = args->in_h;
-	i0.rect.left = i1.rect.left = i0.rect.top = i1.rect.top = 0;
-	i0.pix.bytesperline = 1 * i0.pix.width;
-	i1.pix.bytesperline = 2 * i1.pix.width;
 
-	ipu_cpmem_set_image(cpmem_in, &i0);
-	ipu_cpmem_set_image(cpmem_out, &i1);
-#endif
 	args->input.phys = cma_objs[args->input.phys]->paddr;
 	args->output.phys = cma_objs[args->output.phys]->paddr;
 
@@ -358,6 +341,10 @@ out:
 
 	ipu_ic_put(ic);
 
+	for(i = 0; i < 4; i++)
+		kfree(coeffs[i]);
+	kfree(coeffs);
+
 	return ret;
 }
 
@@ -376,4 +363,6 @@ int ipu_task_queue_ioctl(struct drm_device *drm, void *data,
 			ret = -ENOIOCTLCMD;
 			break;
 	}
+
+	return ret;
 }
