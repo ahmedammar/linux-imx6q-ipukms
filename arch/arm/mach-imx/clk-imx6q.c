@@ -437,6 +437,7 @@ int __init mx6q_clocks_init(void)
 	clk_register_clkdev(clk[ipu1_di1_sel], "di1_sel", "20e0000.lvds");
 	clk_register_clkdev(clk[ldb_di0_sel], "di0_pll", "20e0000.lvds");
 	clk_register_clkdev(clk[ldb_di1_sel], "di1_pll", "20e0000.lvds");
+	clk_register_clkdev(clk[vpu_axi], "vpu_clk", "mxc_vpu.0");
 
 	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++) {
 		c = clk_get_sys(clks_init_on[i], NULL);

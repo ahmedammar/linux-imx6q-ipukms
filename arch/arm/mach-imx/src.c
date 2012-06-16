@@ -18,12 +18,58 @@
 #include <asm/smp_plat.h>
 
 #define SRC_SCR				0x000
+#define SRC_SIMR			0x018
 #define SRC_GPR1			0x020
 #define BP_SRC_SCR_WARM_RESET_ENABLE	0
 #define BP_SRC_SCR_CORE1_RST		14
 #define BP_SRC_SCR_CORE1_ENABLE		22
+#define BP_SRC_SCR_VPU_RST		2
+#define BP_SRC_SCR_IPU1_RST		3
+#define BP_SRC_SCR_IPU2_RST		12
+#define BP_SRC_SIMR_VPU_MASK		1
+#define BP_SRC_SIMR_IPU1_MASK		2
+#define BP_SRC_SIMR_IPU2_MASK		4
 
 static void __iomem *src_base;
+
+void imx_reset_vpu(void)
+{
+	u32 val;
+
+	/* mask interrupt due to vpu passed reset */
+	val = readl_relaxed(src_base + SRC_SIMR);
+	val |= (1 << BP_SRC_SIMR_VPU_MASK);
+	writel_relaxed(val, src_base + SRC_SIMR);
+
+	val = readl_relaxed(src_base + SRC_SCR);
+	val |= (1 << BP_SRC_SCR_VPU_RST);    /* reset vpu */
+	writel_relaxed(val, src_base + SRC_SCR);
+	while (readl_relaxed(src_base + SRC_SCR) &
+		(1 << BP_SRC_SCR_VPU_RST))
+		;
+}
+
+void imx_reset_ipu(int ipu)
+{
+	u32 val;
+	u32 scr_off = ipu ? BP_SRC_SCR_IPU2_RST : BP_SRC_SCR_IPU1_RST;
+	u32 simr_off = ipu ? BP_SRC_SIMR_IPU2_MASK : BP_SRC_SIMR_IPU1_MASK;
+
+	/* mask interrupt due to ipu passed reset */
+	val = readl_relaxed(src_base + SRC_SIMR);
+	val |= (1 << simr_off);
+	writel_relaxed(val, src_base + SRC_SIMR);
+
+	/* reset the IPU */
+	val = readl_relaxed(src_base + SRC_SCR);
+	val |= (1 << scr_off);
+	writel_relaxed(val, src_base + SRC_SCR);
+
+	while (readl_relaxed(src_base + SRC_SCR) &
+		(1 << scr_off))
+		;
+}
+EXPORT_SYMBOL_GPL(imx_reset_ipu);
 
 void imx_enable_cpu(int cpu, bool enable)
 {
