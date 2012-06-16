@@ -12,7 +12,7 @@
  * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  * for more details.
  */
-#define DEBUG 1
+//#define DEBUG 1
 
 #include <drm/drmP.h>
 #include <drm/imx-ipu-v3.h>
@@ -155,9 +155,9 @@ static void init_csc(struct ipu_ic *ic, uint32_t **csc_coeff)
 		(csc_coeff[0][0] << 18) |
 		(csc_coeff[1][1] << 9) | csc_coeff[2][2];
 	writel(param, base++);
-
-	/* scale = 2, sat = 0 */
-	param = (csc_coeff[3][0] >> 5) | (2L << (40 - 32));
+	param = (csc_coeff[3][0] >> 5);
+	param |= (1L << (40 - 32)); // scale coeffs*1
+	//param |= (1L << (42 - 32)); // sat (16 , 235/240)
 	writel(param, base++);
 
 	param = (csc_coeff[3][1] << 27) |
@@ -222,6 +222,8 @@ int  colorspace_conversion_task(struct drm_device *drm, struct ipu_soc *ipu, str
 	struct completion comp;
 	int ret = 0, i;
 
+	dev_dbg(ipu->dev, "colorspace_conversion_task -->\n");
+
 	struct ipu_ic *ic = ipu_ic_get(ipu);
 	if(IS_ERR(ic)) {
 		dev_err(ipu->dev, "ipu_ic_get failed.\n");
@@ -232,11 +234,15 @@ int  colorspace_conversion_task(struct drm_device *drm, struct ipu_soc *ipu, str
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
+	dev_dbg(ipu->dev, "init_completion\n");
+
 	res = &ipu_ic_resources[0];
 	channel_in = ipu_idmac_get(ipu, res->ipu_channel_in);
 	channel_out = ipu_idmac_get(ipu, res->ipu_channel_out);
 	cpmem_in = ipu_get_cpmem(channel_in);
 	cpmem_out = ipu_get_cpmem(channel_out);
+
+	dev_dbg(ipu->dev, "get resources\n");
 
 	uint32_t **coeffs = kcalloc(4, sizeof(uint32_t *), GFP_KERNEL);
 	for(i = 0; i < 4; i++) {
@@ -248,6 +254,8 @@ int  colorspace_conversion_task(struct drm_device *drm, struct ipu_soc *ipu, str
 			return -ret;
 		}
 	}
+
+	dev_dbg(ipu->dev, "copy from user\n");
 
 	init_csc(ic, coeffs);
 
@@ -264,9 +272,6 @@ int  colorspace_conversion_task(struct drm_device *drm, struct ipu_soc *ipu, str
 	dev_dbg(ipu->dev, "\t\tpix.bytesperline: %d\n", args->output.pix.bytesperline);
 	dev_dbg(ipu->dev, "\t\tpix.width: %d\n", args->output.pix.width);
 	dev_dbg(ipu->dev, "\t\tpix.height: %d\n", args->output.pix.height);
-
-	args->input.phys = cma_objs[args->input.phys]->paddr;
-	args->output.phys = cma_objs[args->output.phys]->paddr;
 
 	ipu_cpmem_set_image(cpmem_in, &args->input);
 	ipu_cpmem_set_image(cpmem_out, &args->output);
