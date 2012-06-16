@@ -17,5 +17,5 @@ struct drm_imx_ipu_queue {
 
 #define DRM_IMX_IPU_QUEUE		0x00
 
-#define DRM_IOCTL_IMX_IPU_QUEUE		DRM_IOWR(DRM_COMMAND_BASE + \
+#define DRM_IOCTL_IMX_IPU_QUEUE		DRM_IOW(DRM_COMMAND_BASE + \
 		DRM_IMX_IPU_QUEUE, struct drm_imx_ipu_queue)

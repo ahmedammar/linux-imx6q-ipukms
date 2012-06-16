@@ -779,7 +779,7 @@ int imx_drm_remove_connector(struct imx_drm_connector *imx_drm_connector)
 EXPORT_SYMBOL_GPL(imx_drm_remove_connector);
 
 static struct drm_ioctl_desc imx_drm_ioctls[] = {
-	DRM_IOCTL_DEF_DRV(IMX_IPU_QUEUE, ipu_task_queue_ioctl, DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(IMX_IPU_QUEUE, ipu_task_queue_ioctl, DRM_AUTH | DRM_UNLOCKED),
 };
 
 static struct drm_driver imx_drm_driver = {

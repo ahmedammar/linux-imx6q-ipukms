@@ -153,8 +153,6 @@ void drm_gem_cma_free_object(struct drm_gem_object *gem_obj)
 }
 EXPORT_SYMBOL_GPL(drm_gem_cma_free_object);
 
-struct drm_gem_cma_object *cma_objs[16];
-static int count = 0;
 /*
  * drm_gem_cma_dumb_create - (struct drm_driver)->dumb_create callback
  * function
@@ -178,8 +176,7 @@ int drm_gem_cma_dumb_create(struct drm_file *file_priv,
 	if (IS_ERR(cma_obj))
 		return PTR_ERR(cma_obj);
 
-	cma_objs[count%16] = cma_obj;
-	return count++%16;
+	return cma_obj->paddr;
 }
 EXPORT_SYMBOL_GPL(drm_gem_cma_dumb_create);
 
