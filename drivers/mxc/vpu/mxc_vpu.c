@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2006-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -19,8 +19,8 @@
  * @ingroup VPU
  */
 
-#include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
@@ -28,6 +28,7 @@
 #include <linux/platform_device.h>
 #include <linux/kdev_t.h>
 #include <linux/dma-mapping.h>
+#include <linux/iram_alloc.h>
 #include <linux/wait.h>
 #include <linux/list.h>
 #include <linux/clk.h>
@@ -42,10 +43,15 @@
 #include <asm/sizes.h>
 #include <mach/clock.h>
 #include <mach/hardware.h>
-#include <mach/iram.h>
+
 #include <mach/mxc_vpu.h>
 
+/* Define one new pgprot which combined uncached and XN(never executable) */
+#define pgprot_noncachedxn(prot) \
+	__pgprot_modify(prot, L_PTE_MT_MASK, L_PTE_MT_UNCACHED | L_PTE_XN)
+
 struct vpu_priv {
+	struct device *dev;
 	struct fasync_struct *async_queue;
 	struct work_struct work;
 	struct workqueue_struct *workqueue;
@@ -65,6 +71,7 @@ struct iram_setting {
 static DEFINE_SPINLOCK(vpu_lock);
 static LIST_HEAD(head);
 
+struct device *temp_class;
 static int vpu_major;
 static int vpu_clk_usercount;
 static struct class *vpu_class;
@@ -90,11 +97,6 @@ static int irq_status;
 static int codec_done;
 static wait_queue_head_t vpu_queue;
 
-static u32 workctrl_regsave[6];
-static u32 rd_ptr_regsave[4];
-static u32 wr_ptr_regsave[4];
-static u32 dis_flag_regsave[4];
-
 #ifdef CONFIG_SOC_IMX6Q
 #define MXC_VPU_HAS_JPU
 #endif
@@ -103,54 +105,10 @@ static u32 dis_flag_regsave[4];
 static int vpu_jpu_irq;
 #endif
 
+static unsigned int regBk[64];
+
 #define	READ_REG(x)		__raw_readl(vpu_base + x)
 #define	WRITE_REG(val, x)	__raw_writel(val, vpu_base + x)
-#define	SAVE_WORK_REGS	do {					\
-	int i;							\
-	for (i = 0; i < ARRAY_SIZE(workctrl_regsave)/2; i++)	\
-		workctrl_regsave[i] = READ_REG(BIT_WORK_CTRL_BUF_REG(i));\
-} while (0)
-#define	RESTORE_WORK_REGS	do {				\
-	int i;							\
-	for (i = 0; i < ARRAY_SIZE(workctrl_regsave)/2; i++)	\
-		WRITE_REG(workctrl_regsave[i], BIT_WORK_CTRL_BUF_REG(i));\
-} while (0)
-#define	SAVE_CTRL_REGS	do {					\
-	int i;							\
-	for (i = ARRAY_SIZE(workctrl_regsave)/2;		\
-			i < ARRAY_SIZE(workctrl_regsave); i++)		\
-		workctrl_regsave[i] = READ_REG(BIT_WORK_CTRL_BUF_REG(i));\
-} while (0)
-#define	RESTORE_CTRL_REGS	do {				\
-	int i;							\
-	for (i = ARRAY_SIZE(workctrl_regsave)/2;		\
-			i < ARRAY_SIZE(workctrl_regsave); i++)		\
-		WRITE_REG(workctrl_regsave[i], BIT_WORK_CTRL_BUF_REG(i));\
-} while (0)
-#define	SAVE_RDWR_PTR_REGS	do {					\
-	int i;								\
-	for (i = 0; i < ARRAY_SIZE(rd_ptr_regsave); i++)		\
-		rd_ptr_regsave[i] = READ_REG(BIT_RD_PTR_REG(i));	\
-	for (i = 0; i < ARRAY_SIZE(wr_ptr_regsave); i++)		\
-		wr_ptr_regsave[i] = READ_REG(BIT_WR_PTR_REG(i));	\
-} while (0)
-#define	RESTORE_RDWR_PTR_REGS	do {					\
-	int i;								\
-	for (i = 0; i < ARRAY_SIZE(rd_ptr_regsave); i++)		\
-		WRITE_REG(rd_ptr_regsave[i], BIT_RD_PTR_REG(i));	\
-	for (i = 0; i < ARRAY_SIZE(wr_ptr_regsave); i++)		\
-		WRITE_REG(wr_ptr_regsave[i], BIT_WR_PTR_REG(i));	\
-} while (0)
-#define	SAVE_DIS_FLAG_REGS	do {					\
-	int i;								\
-	for (i = 0; i < ARRAY_SIZE(dis_flag_regsave); i++)		\
-		dis_flag_regsave[i] = READ_REG(BIT_FRM_DIS_FLG_REG(i));	\
-} while (0)
-#define	RESTORE_DIS_FLAG_REGS	do {					\
-	int i;								\
-	for (i = 0; i < ARRAY_SIZE(dis_flag_regsave); i++)		\
-		WRITE_REG(dis_flag_regsave[i], BIT_FRM_DIS_FLG_REG(i));	\
-} while (0)
 
 /*!
  * Private function to alloc dma buffer
@@ -159,10 +117,12 @@ static int vpu_jpu_irq;
 static int vpu_alloc_dma_buffer(struct vpu_mem_desc *mem)
 {
 	mem->cpu_addr = (unsigned long)
-	    dma_alloc_coherent(NULL, PAGE_ALIGN(mem->size),
+	    //dma_alloc_coherent(NULL, PAGE_ALIGN(mem->size),
+	    dma_alloc_writecombine(temp_class, PAGE_ALIGN(mem->size),
 			       (dma_addr_t *) (&mem->phy_addr),
-			       GFP_DMA | GFP_KERNEL);
-	pr_debug("[ALLOC] mem alloc cpu_addr = 0x%x\n", mem->cpu_addr);
+			       GFP_KERNEL | __GFP_NOWARN); //GFP_DMA | GFP_KERNEL);
+	pr_debug("[ALLOC] mem alloc cpu_addr = 0x%x phy_addr = 0x%x\n", 
+				mem->cpu_addr, mem->phy_addr);
 	if ((void *)(mem->cpu_addr) == NULL) {
 		printk(KERN_ERR "Physical memory allocation error!\n");
 		return -1;
@@ -560,12 +520,18 @@ static int vpu_map_hwregs(struct file *fp, struct vm_area_struct *vm)
 	unsigned long pfn;
 
 	vm->vm_flags |= VM_IO | VM_RESERVED;
-	vm->vm_page_prot = pgprot_noncached(vm->vm_page_prot);
+	/*
+	 * Since vpu registers have been mapped with ioremap() at probe
+	 * which L_PTE_XN is 1, and the same physical address must be
+	 * mapped multiple times with same type, so set L_PTE_XN to 1 here.
+	 * Otherwise, there may be unexpected result in video codec.
+	 */
+	vm->vm_page_prot = pgprot_noncachedxn(vm->vm_page_prot);
 	pfn = phy_vpu_base_addr >> PAGE_SHIFT;
 	pr_debug("size=0x%x,  page no.=0x%x\n",
 		 (int)(vm->vm_end - vm->vm_start), (int)pfn);
 	return remap_pfn_range(vm, vm->vm_start, pfn, vm->vm_end - vm->vm_start,
-			       vm->vm_page_prot) ? -EAGAIN : 0;
+			       vm->vm_page_prot);
 }
 
 /*!
@@ -575,17 +541,19 @@ static int vpu_map_hwregs(struct file *fp, struct vm_area_struct *vm)
 static int vpu_map_dma_mem(struct file *fp, struct vm_area_struct *vm)
 {
 	int request_size;
+	struct vpu_priv *priv = fp->private_data;
+
 	request_size = vm->vm_end - vm->vm_start;
 
-	pr_debug(" start=0x%x, pgoff=0x%x, size=0x%x\n",
-		 (unsigned int)(vm->vm_start), (unsigned int)(vm->vm_pgoff),
-		 request_size);
+	pr_debug("%s name:%s start=0x%x, pgoff=0x%x, size=0x%x\n", __func__,
+		 kobject_name(&priv->dev->kobj), (unsigned int)(vm->vm_start), 
+		 (unsigned int)(vm->vm_pgoff), request_size);
 
-	vm->vm_flags |= VM_IO | VM_RESERVED;
-	vm->vm_page_prot = pgprot_writecombine(vm->vm_page_prot);
+	vm->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
+	vm->vm_page_prot = pgprot_writecombine(vm_get_page_prot(vm->vm_page_prot));
 
 	return remap_pfn_range(vm, vm->vm_start, vm->vm_pgoff,
-			       request_size, vm->vm_page_prot) ? -EAGAIN : 0;
+			       request_size, vm->vm_page_prot);
 
 }
 
@@ -595,7 +563,15 @@ static int vpu_map_dma_mem(struct file *fp, struct vm_area_struct *vm)
  */
 static int vpu_map_vshare_mem(struct file *fp, struct vm_area_struct *vm)
 {
+	int request_size;
+	struct vpu_priv *priv = fp->private_data;
 	int ret = -EINVAL;
+
+	request_size = vm->vm_end - vm->vm_start;
+
+	pr_debug("%s name:%s start=0x%x, pgoff=0x%x, size=0x%x\n", __func__,
+		 kobject_name(&priv->dev->kobj), (unsigned int)(vm->vm_start), 
+		 (unsigned int)(vm->vm_pgoff), request_size);
 
 	spin_lock(&vpu_lock);
 	ret = remap_vmalloc_range(vm, (void *)(vm->vm_pgoff << PAGE_SHIFT), 0);
@@ -639,7 +615,6 @@ struct file_operations vpu_fops = {
 static int vpu_dev_probe(struct platform_device *pdev)
 {
 	int err = 0;
-	struct device *temp_class;
 	struct resource *res;
 	unsigned long addr = 0;
 
@@ -654,16 +629,13 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		iram.end = addr +  vpu_plat->iram_size - 1;
 	}
 
-	if (pdev->dev.of_node)
-		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	else
-		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "vpu_regs");
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		printk(KERN_ERR "vpu: unable to get vpu base addr\n");
 		return -ENODEV;
 	}
 	phy_vpu_base_addr = res->start;
-	vpu_base = ioremap(res->start, res->end - res->start);
+	vpu_base = devm_ioremap(&pdev->dev, res->start, res->end - res->start);
 
 	vpu_major = register_chrdev(vpu_major, "mxc_vpu", &vpu_fops);
 	if (vpu_major < 0) {
@@ -678,23 +650,22 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		goto err_out_chrdev;
 	}
 
-	temp_class = device_create(vpu_class, NULL, MKDEV(vpu_major, 0),
+	vpu_data.dev = device_create(vpu_class, NULL, MKDEV(vpu_major, 0),
 				   NULL, "mxc_vpu");
-	if (IS_ERR(temp_class)) {
-		err = PTR_ERR(temp_class);
+	if (IS_ERR(vpu_data.dev)) {
+		err = PTR_ERR(vpu_data.dev);
 		goto err_out_class;
 	}
+	vpu_data.dev->coherent_dma_mask = DMA_BIT_MASK(32);
 
 	vpu_clk = clk_get(&pdev->dev, "vpu_clk");
 	if (IS_ERR(vpu_clk)) {
 		err = -ENOENT;
 		goto err_out_class;
 	}
+	clk_prepare_enable(vpu_clk);
 
-	if (pdev->dev.of_node)
-		vpu_ipi_irq = platform_get_irq(pdev, 0);
-	else
-		vpu_ipi_irq = platform_get_irq_byname(pdev, "vpu_ipi_irq");
+	vpu_ipi_irq = platform_get_irq(pdev, 0);
 	if (vpu_ipi_irq < 0) {
 		printk(KERN_ERR "vpu: unable to get vpu interrupt\n");
 		err = -ENXIO;
@@ -706,10 +677,7 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		goto err_out_class;
 
 #ifdef MXC_VPU_HAS_JPU
-	if (pdev->dev.of_node)
-		vpu_jpu_irq = platform_get_irq(pdev, 1);
-	else
-		vpu_jpu_irq = platform_get_irq_byname(pdev, "vpu_jpu_irq");
+	vpu_jpu_irq = platform_get_irq(pdev, 1);
 	if (vpu_jpu_irq < 0) {
 		printk(KERN_ERR "vpu: unable to get vpu jpu interrupt\n");
 		err = -ENXIO;
@@ -777,27 +745,22 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 	}
 
 	/* Make sure clock is disabled before suspend */
-	vpu_clk_usercount = clk_get_usecount(vpu_clk);
+/*	vpu_clk_usercount = clk_get_usecount(vpu_clk);
 	for (i = 0; i < vpu_clk_usercount; i++)
-		clk_disable(vpu_clk);
+		clk_disable(vpu_clk);*/
 
-	if (cpu_is_mx51()) {
+	if (cpu_is_mx53())
+		return 0;
+
+	if (bitwork_mem.cpu_addr != 0) {
 		clk_enable(vpu_clk);
-		if (bitwork_mem.cpu_addr != 0) {
-			SAVE_WORK_REGS;
-			SAVE_CTRL_REGS;
-			SAVE_RDWR_PTR_REGS;
-			SAVE_DIS_FLAG_REGS;
-
-			WRITE_REG(0x1, BIT_BUSY_FLAG);
-			WRITE_REG(VPU_SLEEP_REG_VALUE, BIT_RUN_COMMAND);
-			while (READ_REG(BIT_BUSY_FLAG))
-				;
-		}
+		/* Save 64 registers from BIT_CODE_BUF_ADDR */
+		for (i = 0; i < 64; i++)
+			regBk[i] = READ_REG(BIT_CODE_BUF_ADDR + (i * 4));
 		clk_disable(vpu_clk);
 	}
 
-	if (cpu_is_mx51() && vpu_plat->pg)
+	if (vpu_plat->pg)
 		vpu_plat->pg(1);
 
 	return 0;
@@ -812,20 +775,29 @@ static int vpu_resume(struct platform_device *pdev)
 {
 	int i;
 
-	if (!cpu_is_mx51())
+	if (cpu_is_mx53())
 		goto recover_clk;
 
 	if (vpu_plat->pg)
 		vpu_plat->pg(0);
 
-	clk_enable(vpu_clk);
 	if (bitwork_mem.cpu_addr != 0) {
 		u32 *p = (u32 *) bitwork_mem.cpu_addr;
-		u32 data;
+		u32 data, pc;
 		u16 data_hi;
 		u16 data_lo;
 
-		RESTORE_WORK_REGS;
+		clk_enable(vpu_clk);
+
+		pc = READ_REG(BIT_CUR_PC);
+		if (pc) {
+			clk_disable(vpu_clk);
+			goto recover_clk;
+		}
+
+		/* Restore registers */
+		for (i = 0; i < 64; i++)
+			WRITE_REG(regBk[i], BIT_CODE_BUF_ADDR + (i * 4));
 
 		WRITE_REG(0x0, BIT_RESET_CTRL);
 		WRITE_REG(0x0, BIT_CODE_RUN);
@@ -851,24 +823,12 @@ static int vpu_resume(struct platform_device *pdev)
 				  BIT_CODE_DOWN);
 		}
 
-		RESTORE_CTRL_REGS;
-
-		WRITE_REG(BITVAL_PIC_RUN, BIT_INT_ENABLE);
-
 		WRITE_REG(0x1, BIT_BUSY_FLAG);
 		WRITE_REG(0x1, BIT_CODE_RUN);
 		while (READ_REG(BIT_BUSY_FLAG))
 			;
-
-		RESTORE_RDWR_PTR_REGS;
-		RESTORE_DIS_FLAG_REGS;
-
-		WRITE_REG(0x1, BIT_BUSY_FLAG);
-		WRITE_REG(VPU_WAKE_REG_VALUE, BIT_RUN_COMMAND);
-		while (READ_REG(BIT_BUSY_FLAG))
-			;
+		clk_disable(vpu_clk);
 	}
-	clk_disable(vpu_clk);
 
 recover_clk:
 	/* Recover vpu clock */
@@ -897,8 +857,8 @@ static struct platform_driver mxcvpu_driver = {
 		   },
 	.probe = vpu_dev_probe,
 	.remove = vpu_dev_remove,
-	.suspend = vpu_suspend,
-	.resume = vpu_resume,
+	//.suspend = vpu_suspend,
+	//.resume = vpu_resume,
 };
 
 static int __init vpu_init(void)

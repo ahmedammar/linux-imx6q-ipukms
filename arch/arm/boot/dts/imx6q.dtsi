@@ -215,8 +215,9 @@
 			};
 
 			vpu@02040000 {
+				compatible = "fsl,vpu";
 				reg = <0x02040000 0x3c000>;
-				interrupts = <0 3 0x04 0 12 0x04>;
+				interrupts = <0 12 0x04 0 3 0x04>;
 			};
 
 			aipstz@0207c000 { /* AIPSTZ1 */
