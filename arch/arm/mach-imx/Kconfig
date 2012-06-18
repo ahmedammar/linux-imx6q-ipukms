@@ -832,6 +832,7 @@ config SOC_IMX6Q
 	select PINCTRL
 	select PINCTRL_IMX6Q
 	select USE_OF
+	select ARCH_HAS_CPUFREQ
 
 	help
 	  This enables support for Freescale i.MX6 Quad processor.
