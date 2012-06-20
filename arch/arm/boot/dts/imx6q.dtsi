@@ -29,12 +29,12 @@
 			compatible = "arm,cortex-a9";
 			reg = <0>;
 			next-level-cache = <&L2>;
-			cpu-freqs = <996000000 792000000 396000000 198000000>;
+			cpu-freqs = <936000000 468000000 234000000 117000000>;
 			cpu-volts = <	/* min		max */
-					1225000		1450000	/* 996M */
-					1100000		1450000	/* 792M */
-					950000		1450000	/* 396M */
-					850000		1450000>; /* 198M */
+					1225000		1450000
+					950000		1450000
+					850000		1450000
+					750000		1450000>;
 			trans-latency = <61036>; /* two CLK32 periods */
 		};
 
@@ -366,19 +366,20 @@
 				compatible = "fsl,imx6q-anatop";
 				reg = <0x020c8000 0x1000>;
 				interrupts = <0 49 0x04 0 54 0x04 0 127 0x04>;
-
+				#address-cells = <1>;
+				#size-cells = <0>;
 				regulator-1p1@110 {
 					compatible = "fsl,anatop-regulator";
 					regulator-name = "vdd1p1";
 					regulator-min-microvolt = <800000>;
-					regulator-max-microvolt = <1375000>;
+					regulator-max-microvolt = <1400000>;
 					regulator-always-on;
 					anatop-reg-offset = <0x110>;
 					anatop-vol-bit-shift = <8>;
 					anatop-vol-bit-width = <5>;
 					anatop-min-bit-val = <4>;
 					anatop-min-voltage = <800000>;
-					anatop-max-voltage = <1375000>;
+					anatop-max-voltage = <1400000>;
 				};
 
 				regulator-3p0@120 {
@@ -390,9 +391,9 @@
 					anatop-reg-offset = <0x120>;
 					anatop-vol-bit-shift = <8>;
 					anatop-vol-bit-width = <5>;
-					anatop-min-bit-val = <0>;
-					anatop-min-voltage = <2625000>;
-					anatop-max-voltage = <3400000>;
+					anatop-min-bit-val = <7>;
+					anatop-min-voltage = <2800000>;
+					anatop-max-voltage = <3150000>;
 				};
 
 				regulator-2p5@130 {
