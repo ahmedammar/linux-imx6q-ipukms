@@ -434,7 +434,7 @@ int __init mx53_clocks_init(unsigned long rate_ckil, unsigned long rate_osc,
 	clk_register_clkdev(clk[vpu_gate], NULL, "imx53-vpu.0");
 	clk_register_clkdev(clk[i2c3_gate], NULL, "imx-i2c.2");
 	clk_register_clkdev(clk[fec_gate], NULL, "imx25-fec.0");
-	clk_register_clkdev(clk[ipu_gate], "bus", "1e000000.ipu");
+	clk_register_clkdev(clk[ipu_gate], "bus", "18000000.ipu");
 	clk_register_clkdev(clk[ipu_di0_gate], "di0", "18000000.ipu");
 	clk_register_clkdev(clk[ipu_di1_gate], "di1", "18000000.ipu");
 	clk_register_clkdev(clk[ipu_gate], "hsp", "18000000.ipu");
