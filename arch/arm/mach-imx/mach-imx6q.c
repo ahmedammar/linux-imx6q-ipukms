@@ -29,9 +29,21 @@
 #include <asm/hardware/gic.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/time.h>
+#include <asm/system_info.h>
 #include <asm/system_misc.h>
 #include <mach/common.h>
 #include <mach/hardware.h>
+#include <mach/mxc_vpu.h>
+
+static void mx6q_vpu_reset(void)
+{
+	imx_reset_vpu();
+}
+
+static struct mxc_vpu_platform_data vpu_pdata = {
+	.iram_enable = false,
+	.reset = mx6q_vpu_reset,
+};
 
 void imx6q_restart(char mode, const char *cmd)
 {
@@ -113,6 +125,10 @@ static void __init imx6q_sabrelite_init(void)
 	imx6q_sabrelite_cko1_setup();
 }
 
+static const struct of_dev_auxdata imx6q_auxdata_lookup[] __initconst = {
+	OF_DEV_AUXDATA("fsl,vpu", MX6Q_VPU_BASE_ADDR, "mxc_vpu.0", &vpu_pdata),
+};
+
 static void __init imx6q_init_machine(void)
 {
 	/*
@@ -124,7 +140,8 @@ static void __init imx6q_init_machine(void)
 	if (of_machine_is_compatible("fsl,imx6q-sabrelite"))
 		imx6q_sabrelite_init();
 
-	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
+	of_platform_populate(NULL, of_default_bus_match_table,
+                                                imx6q_auxdata_lookup, NULL);
 
 	imx6q_pm_init();
 }
@@ -134,6 +151,10 @@ static void __init imx6q_map_io(void)
 	imx_lluart_map_io();
 	imx_scu_map_io();
 	imx6q_clock_map_io();
+
+	mxc_set_cpu_type(MXC_CPU_MX6Q);
+	if (!system_rev)
+		system_rev = 0x63000;
 }
 
 static int __init imx6q_gpio_add_irq_domain(struct device_node *np,

@@ -430,6 +430,7 @@ int __init mx6q_clocks_init(void)
 	clk_register_clkdev(clk[ipu2_di1], "di1", "2800000.ipu");
 	clk_register_clkdev(clk[hdmi_isfr], "isfr", "120000.hdmi");
 	clk_register_clkdev(clk[hdmi_iahb], "iahb", "120000.hdmi");
+	clk_register_clkdev(clk[vpu_axi], "vpu_clk", "mxc_vpu.0");
 
 	clk_set_rate(clk[pll5_video], 650000000);
 	clk_set_parent(clk[ipu1_di0_sel], clk[ipu1_di0_pre]);
