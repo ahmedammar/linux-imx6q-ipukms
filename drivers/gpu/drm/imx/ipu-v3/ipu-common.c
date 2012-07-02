@@ -1127,7 +1127,7 @@ void __exit imx_ipu_exit(void)
 	platform_driver_unregister(&imx_ipu_driver);
 }
 
-device_initcall(imx_ipu_init);
+subsys_initcall(imx_ipu_init);
 module_exit(imx_ipu_exit);
 
 MODULE_DESCRIPTION("i.MX IPU v3 driver");
