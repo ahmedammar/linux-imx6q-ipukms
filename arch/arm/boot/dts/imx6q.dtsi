@@ -91,7 +91,7 @@
 			compatible = "fsl,imx6q-hdmi", "fsl,hdmi";
 			reg = <0x00120000 0x9000>;
 			interrupts = <0 115 0x04>;
-			crtcs = <&ipu0 0 &ipu0 1 &ipu1 0 &ipu1 1>;
+			crtcs = <&ipu0 1 &ipu1 0 &ipu1 1>;
 			status = "disabled";
 		};
 
@@ -515,6 +515,40 @@
 					pinctrl_serial2_1: serial2grp-1 {
 						fsl,pins = <183 0x1b0b1		/* MX6Q_PAD_EIM_D26__UART2_TXD */
 							    191 0x1b0b1>;	/* MX6Q_PAD_EIM_D27__UART2_RXD */
+					};
+				};
+
+				display {
+					pinctrl_display_1: display-1 {
+						fsl,pins = <472 0x10		/* MX6Q_PAD_DI0_DISP_CLK__IPU1_DI0_DSP_CLK */
+							    478 0x10		/* MX6Q_PAD_DI0_PIN15__IPU1_DI0_PIN15 */
+							    485 0x10		/* MX6Q_PAD_DI0_PIN2__IPU1_DI0_PIN2 */
+							    493 0x10		/* MX6Q_PAD_DI0_PIN3__IPU1_DI0_PIN3 */
+							    //501 0x80000000	/* MX6Q_PAD_DI0_PIN4__IPU1_DI0_PIN4 */
+							    509 0x10		/* MX6Q_PAD_DISP0_DAT0__IPU1_DISP0_DAT_0 */
+							    516 0x10		/* MX6Q_PAD_DISP0_DAT1__IPU1_DISP0_DAT_1 */
+							    524 0x10		/* MX6Q_PAD_DISP0_DAT2__IPU1_DISP0_DAT_2 */
+							    532 0x10		/* MX6Q_PAD_DISP0_DAT3__IPU1_DISP0_DAT_3 */
+							    540 0x10		/* MX6Q_PAD_DISP0_DAT4__IPU1_DISP0_DAT_4 */
+							    548 0x10		/* MX6Q_PAD_DISP0_DAT5__IPU1_DISP0_DAT_5 */
+							    556 0x10		/* MX6Q_PAD_DISP0_DAT6__IPU1_DISP0_DAT_6 */
+							    564 0x10		/* MX6Q_PAD_DISP0_DAT7__IPU1_DISP0_DAT_7 */
+							    572 0x10		/* MX6Q_PAD_DISP0_DAT8__IPU1_DISP0_DAT_8 */
+							    580 0x10		/* MX6Q_PAD_DISP0_DAT9__IPU1_DISP0_DAT_9 */
+							    588 0x10		/* MX6Q_PAD_DISP0_DAT10__IPU1_DISP0_DAT_10 */
+							    595 0x10		/* MX6Q_PAD_DISP0_DAT11__IPU1_DISP0_DAT_11 */
+							    602 0x10		/* MX6Q_PAD_DISP0_DAT12__IPU1_DISP0_DAT_12 */
+							    609 0x10		/* MX6Q_PAD_DISP0_DAT13__IPU1_DISP0_DAT_13 */
+							    616 0x10		/* MX6Q_PAD_DISP0_DAT14__IPU1_DISP0_DAT_14 */
+							    622 0x10		/* MX6Q_PAD_DISP0_DAT15__IPU1_DISP0_DAT_15 */
+							    630 0x10		/* MX6Q_PAD_DISP0_DAT16__IPU1_DISP0_DAT_16 */
+							    638 0x10		/* MX6Q_PAD_DISP0_DAT17__IPU1_DISP0_DAT_17 */
+							    646 0x10		/* MX6Q_PAD_DISP0_DAT18__IPU1_DISP0_DAT_18 */
+							    654 0x10		/* MX6Q_PAD_DISP0_DAT19__IPU1_DISP0_DAT_19 */
+							    662 0x10		/* MX6Q_PAD_DISP0_DAT20__IPU1_DISP0_DAT_20 */
+							    670 0x10		/* MX6Q_PAD_DISP0_DAT21__IPU1_DISP0_DAT_21 */
+							    678 0x10		/* MX6Q_PAD_DISP0_DAT22__IPU1_DISP0_DAT_22 */
+							    686 0x10>;		/* MX6Q_PAD_DISP0_DAT23__IPU1_DISP0_DAT_23 */
 					};
 				};
 

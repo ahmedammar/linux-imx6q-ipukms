@@ -24,6 +24,7 @@
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <linux/videodev2.h>
+#include <linux/pinctrl/consumer.h>
 
 #include "imx-drm.h"
 
@@ -79,7 +80,7 @@ static int imx_pd_connector_get_modes(struct drm_connector *connector)
 static int imx_pd_connector_mode_valid(struct drm_connector *connector,
 			  struct drm_display_mode *mode)
 {
-	return 0;
+	return MODE_OK;
 }
 
 static struct drm_encoder *imx_pd_connector_best_encoder(
@@ -197,6 +198,7 @@ static int __devinit imx_pd_probe(struct platform_device *pdev)
 	struct imx_parallel_display *imxpd;
 	int ret;
 	const char *fmt;
+	struct pinctrl *pinctrl;
 
 	imxpd = devm_kzalloc(&pdev->dev, sizeof(*imxpd), GFP_KERNEL);
 	if (!imxpd)
@@ -217,6 +219,12 @@ static int __devinit imx_pd_probe(struct platform_device *pdev)
 			imxpd->interface_pix_fmt = V4L2_PIX_FMT_RGB24;
 		else if (!strcmp(fmt, "rgb565"))
 			imxpd->interface_pix_fmt = V4L2_PIX_FMT_RGB565;
+	}
+
+	pinctrl = devm_pinctrl_get_select_default(&pdev->dev);
+	if (IS_ERR(pinctrl)) {
+		ret = PTR_ERR(pinctrl);
+		return ret;
 	}
 
 	imxpd->dev = &pdev->dev;
