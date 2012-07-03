@@ -188,7 +188,6 @@ extern struct drm_gem_cma_object *cma_objs[16]; /* FIXME */
 int ipu_ic_init(struct ipu_soc *ipu, struct device *dev, unsigned long base)
 {
 	struct ipu_ic *ic;
-	int ret;
 
 	ic = devm_kzalloc(dev, sizeof(*ic), GFP_KERNEL);
 	if (!ic)
@@ -218,7 +217,6 @@ int  colorspace_conversion_task(struct drm_device *drm, struct ipu_soc *ipu, str
 	struct ipuv3_channel *channel_in, *channel_out;
 	struct ipu_ch_param *cpmem_in, *cpmem_out;
 	uint32_t ipu_ic_conf, ipu_ic_idmac_1, ipu_ic_idmac_2, ipu_ic_idmac_3;
-	enum ipu_color_space format_in, format_out;
 	struct completion comp;
 	int ret = 0, i;
 
@@ -316,7 +314,6 @@ int  colorspace_conversion_task(struct drm_device *drm, struct ipu_soc *ipu, str
 
 	ipu_module_enable(ipu, IPU_CONF_IC_EN);
 
-	int irq = platform_get_irq(to_platform_device(drm->dev), 0);
 	ret = devm_request_irq(ipu->dev, ipu->irq_start + channel_out->num, task_irq_handler, 0, "task_irq", &comp);
 	if (ret)
 	    goto out;
