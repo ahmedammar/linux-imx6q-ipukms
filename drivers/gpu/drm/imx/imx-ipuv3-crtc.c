@@ -212,7 +212,7 @@ static int ipu_crtc_mode_set(struct drm_crtc *crtc,
 	switch (fb->pixel_format) {
 	case DRM_FORMAT_XRGB8888:
 	case DRM_FORMAT_ARGB8888:
-		v4l2_fmt = V4L2_PIX_FMT_RGB32;
+		v4l2_fmt = V4L2_PIX_FMT_BGR32;
 		bpp = 32;
 		break;
 	case DRM_FORMAT_RGB565:
@@ -220,7 +220,7 @@ static int ipu_crtc_mode_set(struct drm_crtc *crtc,
 		bpp = 16;
 		break;
 	case DRM_FORMAT_RGB888:
-		v4l2_fmt = V4L2_PIX_FMT_RGB24;
+		v4l2_fmt = V4L2_PIX_FMT_BGR24;
 		bpp = 24;
 		break;
 	default:
