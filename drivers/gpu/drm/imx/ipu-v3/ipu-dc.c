@@ -64,6 +64,7 @@
 #define DC_STAT			0x01c8
 
 #define WROD(lf)		(0x18 | (lf << 1))
+#define WRG			(0x01)
 
 #define DC_WR_CH_CONF_FIELD_MODE		(1 << 9)
 #define DC_WR_CH_CONF_PROG_TYPE_OFFSET		5
@@ -109,17 +110,30 @@ static void dc_write_tmpl(struct ipu_dc *dc, int word, u32 opcode, u32 operand,
 	u32 reg;
 	int stop = 1;
 
-	reg = sync;
-	reg |= glue << 4;
-	reg |= ++wave << 11;
-	reg |= ++map << 15;
-	reg |= (operand << 20) & 0xfff00000;
-	writel(reg, priv->dc_tmpl_reg + word * 8);
+	if (opcode == WRG) {
+		reg = sync;
+		reg |= glue << 4;
+		reg |= ++wave << 11;
+		reg |= (operand & 0x1ffff) << 15;
+		writel(reg, priv->dc_tmpl_reg + word * 8);
 
-	reg = operand >> 12;
-	reg |= opcode << 4;
-	reg |= stop << 9;
-	writel(reg, priv->dc_tmpl_reg + word * 8 + 4);
+		reg = operand >> 17;
+		reg |= opcode << 7;
+		reg |= stop << 9;
+		writel(reg, priv->dc_tmpl_reg + word * 8 + 4);
+	} else {
+		reg = sync;
+		reg |= glue << 4;
+		reg |= ++wave << 11;
+		reg |= ++map << 15;
+		reg |= (operand << 20) & 0xfff00000;
+		writel(reg, priv->dc_tmpl_reg + word * 8);
+
+		reg = operand >> 12;
+		reg |= opcode << 4;
+		reg |= stop << 9;
+		writel(reg, priv->dc_tmpl_reg + word * 8 + 4);
+	}
 }
 
 static int ipu_pixfmt_to_map(u32 fmt)
@@ -129,6 +143,8 @@ static int ipu_pixfmt_to_map(u32 fmt)
 		return 0;
 	case V4L2_PIX_FMT_RGB565:
 		return 1;
+	case V4L2_PIX_FMT_RGB666:
+		return 2;
 	}
 
 	return -EINVAL;
@@ -164,7 +180,7 @@ int ipu_dc_init_sync(struct ipu_dc *dc, struct ipu_di *di, bool interlaced,
 			dc_link_event(dc, DC_EVT_NEW_DATA, 4, 1);
 			/* Init template microcode */
 			dc_write_tmpl(dc, 2, WROD(0), 0, map, SYNC_WAVE, 8, 5);
-			dc_write_tmpl(dc, 3, WROD(0), 0, map, SYNC_WAVE, 4, 5);
+			dc_write_tmpl(dc, 3, WRG, 0, map, SYNC_WAVE, 4, 5);
 			dc_write_tmpl(dc, 4, WROD(0), 0, map, SYNC_WAVE, 0, 5);
 		} else {
 			dc_link_event(dc, DC_EVT_NL, 5, 3);
@@ -172,7 +188,7 @@ int ipu_dc_init_sync(struct ipu_dc *dc, struct ipu_di *di, bool interlaced,
 			dc_link_event(dc, DC_EVT_NEW_DATA, 7, 1);
 			/* Init template microcode */
 			dc_write_tmpl(dc, 5, WROD(0), 0, map, SYNC_WAVE, 8, 5);
-			dc_write_tmpl(dc, 6, WROD(0), 0, map, SYNC_WAVE, 4, 5);
+			dc_write_tmpl(dc, 6, WRG, 0, map, SYNC_WAVE, 4, 5);
 			dc_write_tmpl(dc, 7, WROD(0), 0, map, SYNC_WAVE, 0, 5);
 		}
 	}
@@ -375,6 +391,12 @@ int ipu_dc_init(struct ipu_soc *ipu, struct device *dev,
 	ipu_dc_map_config(priv, 1, 0, 4, 0xf8);
 	ipu_dc_map_config(priv, 1, 1, 10, 0xfc);
 	ipu_dc_map_config(priv, 1, 2, 15, 0xf8);
+
+	/* rgb666 */
+	ipu_dc_map_clear(priv, 2);
+	ipu_dc_map_config(priv, 1, 0, 5, 0xfc);
+	ipu_dc_map_config(priv, 1, 1, 11, 0xfc);
+	ipu_dc_map_config(priv, 1, 2, 17, 0xfc);
 
 	return 0;
 }
