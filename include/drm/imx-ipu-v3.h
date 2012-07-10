@@ -324,6 +324,7 @@ static inline void ipu_cpmem_interlaced_scan(struct ipu_ch_param *p,
 	ipu_ch_param_write_field(p, IPU_FIELD_SLY, (stride * 2) - 1);
 };
 
+void ipu_cpmem_set_yuv_interleaved(struct ipu_ch_param *p, u32 pixel_format);
 void ipu_cpmem_set_yuv_planar(struct ipu_ch_param __iomem *p, u32 pixel_format,
 			int stride, int height);
 void ipu_cpmem_set_yuv_planar_full(struct ipu_ch_param __iomem *p,

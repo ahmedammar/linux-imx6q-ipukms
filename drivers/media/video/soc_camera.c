@@ -15,6 +15,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+#define DEBUG 1
 
 #include <linux/device.h>
 #include <linux/err.h>
@@ -319,6 +320,8 @@ static int soc_camera_qbuf(struct file *file, void *priv,
 
 	WARN_ON(priv != file->private_data);
 
+        printk("%s\n", __func__);
+
 	if (icd->streamer != file)
 		return -EBUSY;
 
@@ -351,6 +354,8 @@ static int soc_camera_create_bufs(struct file *file, void *priv,
 	struct soc_camera_device *icd = file->private_data;
 	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
 
+        printk("%s\n", __func__);
+
 	/* videobuf2 only */
 	if (ici->ops->init_videobuf)
 		return -EINVAL;
@@ -363,6 +368,8 @@ static int soc_camera_prepare_buf(struct file *file, void *priv,
 {
 	struct soc_camera_device *icd = file->private_data;
 	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
+
+        printk("%s\n", __func__);
 
 	/* videobuf2 only */
 	if (ici->ops->init_videobuf)
@@ -964,8 +971,10 @@ static void scan_add_host(struct soc_camera_host *ici)
 
 	mutex_lock(&ici->host_lock);
 
+        printk("%s: 1\n", __func__);
 	list_for_each_entry(icd, &devices, list) {
 		if (icd->iface == ici->nr) {
+                        printk("%s: 2\n", __func__);
 			int ret;
 
 			icd->parent = ici->v4l2_dev.dev;
@@ -1005,6 +1014,7 @@ static int soc_camera_init_i2c(struct soc_camera_device *icd,
 
 	return 0;
 ei2cnd:
+        dev_err(icd->pdev, "v4l2_i2c_new_subdev_board failed.");
 	i2c_put_adapter(adap);
 ei2cga:
 	return -ENODEV;
@@ -1074,20 +1084,25 @@ static int soc_camera_probe(struct soc_camera_device *icd)
 	if (ret < 0)
 		goto epower;
 
+        printk("%s: 1\n", __func__);
 	/* Must have icd->vdev before registering the device */
 	ret = video_dev_create(icd);
 	if (ret < 0)
 		goto evdc;
 
+        printk("%s: 2\n", __func__);
 	/* Non-i2c cameras, e.g., soc_camera_platform, have no board_info */
 	if (icl->board_info) {
+                printk("%s: 2.1\n", __func__);
 		ret = soc_camera_init_i2c(icd, icl);
 		if (ret < 0)
 			goto eadddev;
 	} else if (!icl->add_device || !icl->del_device) {
+                printk("%s: 2.2\n", __func__);
 		ret = -EINVAL;
 		goto eadddev;
 	} else {
+                printk("%s: 2.3\n", __func__);
 		if (icl->module_name)
 			ret = request_module(icl->module_name);
 
@@ -1107,6 +1122,7 @@ static int soc_camera_probe(struct soc_camera_device *icd)
 			goto enodrv;
 		}
 	}
+        printk("%s: 3\n", __func__);
 
 	sd = soc_camera_to_subdev(icd);
 	sd->grp_id = soc_camera_grp_id(icd);
@@ -1115,11 +1131,13 @@ static int soc_camera_probe(struct soc_camera_device *icd)
 	if (v4l2_ctrl_add_handler(&icd->ctrl_handler, sd->ctrl_handler))
 		goto ectrl;
 
+        printk("%s: 4\n", __func__);
 	/* At this point client .probe() should have run already */
 	ret = soc_camera_init_user_formats(icd);
 	if (ret < 0)
 		goto eiufmt;
 
+        printk("%s: 5\n", __func__);
 	icd->field = V4L2_FIELD_ANY;
 
 	/*
@@ -1129,14 +1147,17 @@ static int soc_camera_probe(struct soc_camera_device *icd)
 	 */
 	mutex_lock(&icd->video_lock);
 
+        printk("%s: 6\n", __func__);
 	ret = soc_camera_video_start(icd);
 	if (ret < 0)
 		goto evidstart;
 
+        printk("%s: 7\n", __func__);
 	ret = v4l2_subdev_call(sd, core, s_power, 1);
 	if (ret < 0 && ret != -ENOIOCTLCMD)
 		goto esdpwr;
 
+        printk("%s: 8\n", __func__);
 	/* Try to improve our guess of a reasonable window format */
 	if (!v4l2_subdev_call(sd, video, g_mbus_fmt, &mf)) {
 		icd->user_width		= mf.width;
@@ -1144,8 +1165,10 @@ static int soc_camera_probe(struct soc_camera_device *icd)
 		icd->colorspace		= mf.colorspace;
 		icd->field		= mf.field;
 	}
+        printk("%s: 9\n", __func__);
 
 	ici->ops->remove(icd);
+        printk("%s: 10\n", __func__);
 
 	soc_camera_power_off(icd, icl);
 
@@ -1471,22 +1494,27 @@ static int __devinit soc_camera_pdrv_probe(struct platform_device *pdev)
 	struct soc_camera_device *icd;
 	int ret;
 
+        printk("%s: 1\n", __func__);
 	if (!icl)
 		return -EINVAL;
 
+        printk("%s: 2\n", __func__);
 	icd = kzalloc(sizeof(*icd), GFP_KERNEL);
 	if (!icd)
 		return -ENOMEM;
 
+        printk("%s: 3\n", __func__);
 	icd->iface = icl->bus_id;
 	icd->link = icl;
 	icd->pdev = &pdev->dev;
 	platform_set_drvdata(pdev, icd);
 
+        printk("%s: 4\n", __func__);
 	ret = soc_camera_device_register(icd);
 	if (ret < 0)
 		goto escdevreg;
 
+        printk("%s: 5\n", __func__);
 	icd->user_width		= DEFAULT_WIDTH;
 	icd->user_height	= DEFAULT_HEIGHT;
 

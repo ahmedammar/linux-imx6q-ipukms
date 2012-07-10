@@ -12,7 +12,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
-#define DEBUG
+#define DEBUG 1
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -95,7 +95,14 @@ static const struct soc_mbus_pixelfmt mx5_camera_formats[] = {
 		.bits_per_sample	= 12,
 		.packing		= SOC_MBUS_PACKING_NONE,
 		.order			= SOC_MBUS_ORDER_LE,
-	},
+	},/* {
+		.fourcc			= V4L2_PIX_FMT_RGB565,
+		.name			= "RGB565",
+		.bits_per_sample	= 8,
+		.packing		= SOC_MBUS_PACKING_2X8_PADHI,
+		.order			= SOC_MBUS_ORDER_LE,
+		.layout			= SOC_MBUS_LAYOUT_PACKED,
+	},*/
 };
 
 static int ipu_capture_channel = 0;
@@ -108,6 +115,8 @@ static irqreturn_t mx5cam_completion_handler(int irq, void *context)
 	unsigned long flags;
 
 	spin_lock_irqsave(&mx5_cam->lock, flags);
+
+	printk("%s\n", __func__);
 
 	if (mx5_cam->active) {
 
@@ -154,6 +163,8 @@ static int mx5_videobuf_setup(struct vb2_queue *vq, const struct v4l2_format *fm
 	int bytes_per_line = soc_mbus_bytes_per_line(icd->user_width,
 						icd->current_fmt->host_fmt);
 
+	printk("%s\n", __func__);
+
 	if (bytes_per_line < 0)
 		return bytes_per_line;
 
@@ -179,6 +190,8 @@ static int mx5_videobuf_prepare(struct vb2_buffer *vb)
 	struct mx5_buffer *buf;
 	int bytes_per_line = soc_mbus_bytes_per_line(icd->user_width,
 						icd->current_fmt->host_fmt);
+
+	printk("%s\n", __func__);
 
 	if (bytes_per_line < 0)
 		return bytes_per_line;
@@ -206,6 +219,8 @@ static void mx5_videobuf_queue(struct vb2_buffer *vb)
 	struct mx5_camera_dev *mx5_cam = ici->priv;
 	struct mx5_buffer *buf = to_mx5_vb(vb);
 	unsigned long flags;
+
+	printk("%s\n", __func__);
 
 	spin_lock_irqsave(&mx5_cam->lock, flags);
 
@@ -259,7 +274,7 @@ static int mx5_videobuf_start_streaming(struct vb2_queue *vq, unsigned int count
 
 	memset(cpmem, 0, sizeof(*cpmem));
 
-	ret = request_threaded_irq(mx5_cam->irq, NULL, mx5cam_completion_handler, IRQF_ONESHOT,
+	ret = request_threaded_irq(mx5_cam->irq + ipu_capture_channel, NULL, mx5cam_completion_handler, IRQF_ONESHOT,
 			"mx5cam", mx5_cam);
 	if (ret)
 		return ret;
@@ -272,24 +287,36 @@ static int mx5_videobuf_start_streaming(struct vb2_queue *vq, unsigned int count
 	case V4L2_PIX_FMT_UYVY:
 		dev_info(dev, "IPU_PIX_FMT_UYVY\n");
 		ipu_cpmem_set_stride(cpmem, xres * 2);
-		//ipu_cpmem_set_yuv_interleaved(cpmem, V4L2_PIX_FMT_UYVY);
+		ipu_cpmem_set_yuv_interleaved(cpmem, V4L2_PIX_FMT_UYVY);
 		break;
 	case V4L2_PIX_FMT_YUV420:
 		dev_info(dev, "V4L2_PIX_FMT_YUV420\n");
 		ipu_cpmem_set_stride(cpmem, xres);
 		ipu_cpmem_set_yuv_planar(cpmem, V4L2_PIX_FMT_YUV420, xres, yres);
 		break;
+	case V4L2_PIX_FMT_RGB565:
+		dev_info(dev, "V4L2_PIX_FMT_RGBP565\n");
+		ipu_cpmem_set_stride(cpmem, xres * 2);
+		ipu_cpmem_set_fmt(cpmem, V4L2_PIX_FMT_RGB565);
+		break;
+
+		break;
 	}
 
 	ipu_csi_set_window_size(xres, yres, 0);
 	ipu_csi_set_window_pos(0, 0, 0);
 
-	ret = ipu_csi_init_interface(xres, yres, csipixfmt, 0x2400cb08);
+	ret = ipu_csi_init_interface(xres, yres, csipixfmt, 0x4000902/*0x2400cb08*/);
 	if (ret)
 		return ret;
 
-	ipu_idmac_set_double_buffer(mx5_cam->ipuch, 1);
-	ipu_idmac_select_buffer(mx5_cam->ipuch, 1);
+	mx5_cam->active = list_first_entry(&mx5_cam->capture,
+			   struct mx5_buffer, queue);
+	struct vb2_buffer *vb = &mx5_cam->active->vb;
+	ipu_cpmem_set_buffer(cpmem, 0, vb2_dma_contig_plane_dma_addr(vb, 0));
+
+	ipu_idmac_set_double_buffer(mx5_cam->ipuch, 0);
+	ipu_idmac_select_buffer(mx5_cam->ipuch, 0);
 	ipu_idmac_enable_channel(mx5_cam->ipuch);
 	ipu_module_enable(mx5_cam->ipu, IPU_CONF_CSI0_EN);
 	ipu_module_enable(mx5_cam->ipu, IPU_CONF_SMFC_EN);
@@ -531,7 +558,7 @@ static int mx5_camera_querycap(struct soc_camera_host *ici,
 			       struct v4l2_capability *cap)
 {
 	/* cap->name is set by the friendly caller:-> */
-	strlcpy(cap->card, "imx-ipuv3-camera", sizeof(cap->card));
+	strlcpy(cap->card, "imx-ipuv3", sizeof(cap->card));
 	cap->version = 0;
 	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
 
@@ -559,7 +586,7 @@ static int __devinit mx5_camera_probe(struct platform_device *pdev)
 {
 	struct ipu_soc *ipu = dev_get_drvdata(pdev->dev.parent);
 	struct mx5_camera_dev *mx5_cam;
-	int irq, err;
+	int err;
 
 	pdev->dev.dma_mask		= &camera_mask,
 	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32),
@@ -591,7 +618,7 @@ static int __devinit mx5_camera_probe(struct platform_device *pdev)
 	mx5_cam->soc_host.ops		= &mx5_soc_camera_host_ops;
 	mx5_cam->soc_host.priv		= mx5_cam;
 	mx5_cam->soc_host.v4l2_dev.dev	= &pdev->dev;
-	mx5_cam->soc_host.nr		= pdev->id;
+	mx5_cam->soc_host.nr		= 0;//pdev->id;
 
 	mx5_cam->alloc_ctx = vb2_dma_contig_init_ctx(&pdev->dev);
 	if (IS_ERR(mx5_cam->alloc_ctx)) {
@@ -603,7 +630,7 @@ static int __devinit mx5_camera_probe(struct platform_device *pdev)
 	if (err)
 		goto failed_register;
 
-	_ipu_csi_init(ipu_capture_channel, 0, 15, 0);
+	_ipu_csi_init(ipu_capture_channel, 0, 7, 0);
 
 	platform_set_drvdata(pdev, mx5_cam);
 

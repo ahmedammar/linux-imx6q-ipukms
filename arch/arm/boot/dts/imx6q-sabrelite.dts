@@ -90,6 +90,27 @@
 					VDDIO-supply = <&reg_3p3v>;
 				};
 			};
+
+			i2c@021a4000 { /* I2C2 */
+				status = "okay";
+				clock-frequency = <100000>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&pinctrl_i2c2_1>;
+			};
+
+			i2c@021a8000 { /* I2C3 */
+				status = "okay";
+				clock-frequency = <100000>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&pinctrl_i2c3_1>;
+			};
+		};
+
+		ov5642 {
+			camera-pwr-gpios = <&gpio1 6 0>, <&gpio1 16 0>;
+			mclk = <24000000>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_camera_1>;
 		};
 
 		display@di0 {

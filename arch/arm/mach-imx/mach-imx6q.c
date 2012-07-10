@@ -13,6 +13,7 @@
 #include <linux/clk.h>
 #include <linux/clkdev.h>
 #include <linux/delay.h>
+#include <linux/i2c.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/irq.h>
@@ -23,6 +24,7 @@
 #include <linux/of_platform.h>
 #include <linux/pinctrl/machine.h>
 #include <linux/phy.h>
+#include <linux/platform_device.h>
 #include <linux/micrel_phy.h>
 #include <asm/smp_twd.h>
 #include <asm/hardware/cache-l2x0.h>
@@ -34,6 +36,7 @@
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <mach/mxc_vpu.h>
+#include <media/soc_camera.h>
 
 static void mx6q_vpu_reset(void)
 {
@@ -94,7 +97,7 @@ static int ksz9021rn_phy_fixup(struct phy_device *phydev)
 
 static void __init imx6q_sabrelite_cko1_setup(void)
 {
-	struct clk *cko1_sel, *ahb, *cko1;
+	struct clk *cko1_sel, *cko2_sel, *ahb, *cko1, *cko2;
 	unsigned long rate;
 
 	cko1_sel = clk_get_sys(NULL, "cko1_sel");
@@ -108,6 +111,18 @@ static void __init imx6q_sabrelite_cko1_setup(void)
 	rate = clk_round_rate(cko1, 16000000);
 	clk_set_rate(cko1, rate);
 	clk_register_clkdev(cko1, NULL, "0-000a");
+
+	cko2_sel = clk_get_sys(NULL, "cko2_sel");
+	cko2 = clk_get_sys(NULL, "cko2");
+	if (IS_ERR(cko2_sel) || IS_ERR(ahb) || IS_ERR(cko2)) {
+		pr_err("cko2 setup failed!\n");
+		goto put_clk;
+	}
+	clk_set_parent(cko2_sel, ahb);
+	rate = clk_round_rate(cko2, 24000000);
+	clk_set_rate(cko2, rate);
+	clk_register_clkdev(cko2, NULL, "1-003c");
+
 put_clk:
 	if (!IS_ERR(cko1_sel))
 		clk_put(cko1_sel);
@@ -115,7 +130,33 @@ put_clk:
 		clk_put(ahb);
 	if (!IS_ERR(cko1))
 		clk_put(cko1);
+	if (!IS_ERR(cko2_sel))
+		clk_put(cko2_sel);
+	if (!IS_ERR(cko2))
+		clk_put(cko2);
+
 }
+
+static struct i2c_board_info camera_ov5642[] = {
+	{
+		I2C_BOARD_INFO("ov5642", 0x3c),
+	},
+};
+
+static struct soc_camera_link iclink_ov5642 = {
+	.bus_id		= 0,		/* Must match with the camera ID */
+	//.power		= pcm037_camera_power,
+	.board_info	= &camera_ov5642[0],
+	.i2c_adapter_id	= 1,
+};
+
+static struct platform_device ov5642 = {
+	.name	= "soc-camera-pdrv",
+	.id	= 0,
+	.dev	= {
+		.platform_data = &iclink_ov5642,
+	},
+};
 
 static void __init imx6q_sabrelite_init(void)
 {
@@ -123,6 +164,8 @@ static void __init imx6q_sabrelite_init(void)
 		phy_register_fixup_for_uid(PHY_ID_KSZ9021, MICREL_PHY_ID_MASK,
 				ksz9021rn_phy_fixup);
 	imx6q_sabrelite_cko1_setup();
+
+	platform_device_register(&ov5642);
 }
 
 static const struct of_dev_auxdata imx6q_auxdata_lookup[] __initconst = {
