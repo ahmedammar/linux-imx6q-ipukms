@@ -121,9 +121,9 @@ static const char *vpu_axi_sels[]	= { "axi", "pll2_pfd2_396m", "pll2_pfd0_352m",
 static const char *cko1_sels[]	= { "pll3_usb_otg", "pll2_bus", "pll1_sys", "pll5_video",
 				    "dummy", "axi", "enfc", "ipu1_di0", "ipu1_di1", "ipu2_di0",
 				    "ipu2_di1", "ahb", "ipg", "ipg_per", "ckil", "pll4_audio", };
-static const char *cko2_sels[]	= { "pll3_usb_otg", "pll2_bus", "pll1_sys", "pll5_video",
-				    "dummy", "axi", "enfc", "ipu1_di0", "ipu1_di1", "ipu2_di0",
-				    "ipu2_di1", "ahb", "ipg", "ipg_per", "ckil", "pll4_audio", };
+static const char *cko2_sels[]	= {  "mmdc_ch0_axi", "mmdc_ch1_axi", "dummy", "dummy", "dummy", "dummy",
+				    "dummy", "dummy", "dummy", "dummy", "dummy", "ahb",
+				    "dummy", "dummy", "osc", };
 
 enum mx6q_clks {
 	dummy, ckil, ckih, osc, pll2_pfd0_352m, pll2_pfd1_594m, pll2_pfd2_396m,
@@ -428,6 +428,7 @@ int __init mx6q_clocks_init(void)
 	clk_register_clkdev(clk[cko1_sel], "cko1_sel", NULL);
 	clk_register_clkdev(clk[cko2_sel], "cko2_sel", NULL);
 	clk_register_clkdev(clk[ahb], "ahb", NULL);
+	clk_register_clkdev(clk[osc], "osc", NULL);
 	clk_register_clkdev(clk[cko1], "cko1", NULL);
 	clk_register_clkdev(clk[cko2], "cko2", NULL);
 	clk_register_clkdev(clk[ipu1], "bus", "2400000.ipu");

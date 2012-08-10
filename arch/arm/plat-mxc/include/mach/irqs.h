@@ -54,7 +54,7 @@
 
 #if defined(CONFIG_DRM_IMX_IPUV3) || defined(CONFIG_DRM_IMX_IPUV3_MODULE)
 #if defined(CONFIG_SOC_IMX6Q)
-#define IMX_IPUV3_IRQS (32 * 5 * 2)
+#define IMX_IPUV3_IRQS (32 * 12)
 #else
 #define IMX_IPUV3_IRQS (32 * 5)
 #endif

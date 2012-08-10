@@ -1089,8 +1089,6 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, ipu);
 
-	clk_prepare_enable(ipu->clk);
-
 	ipu->dev = &pdev->dev;
 	ipu->irq_sync = irq_sync;
 	ipu->irq_err = irq_err;
@@ -1098,6 +1096,8 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 	ret = ipu_irq_init(ipu);
 	if (ret)
 		goto out_failed_irq;
+
+	clk_prepare_enable(ipu->clk);
 
 	ipu_reset(ipu);
 

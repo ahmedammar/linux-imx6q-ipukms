@@ -260,6 +260,8 @@ static int mx5_videobuf_init(struct vb2_buffer *vb)
 	return 0;
 }
 
+extern void ic_enable_csi_mode(struct ipu_soc *ipu);
+
 static int mx5_videobuf_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct soc_camera_device *icd = soc_camera_from_vb2q(vq);
@@ -299,10 +301,17 @@ static int mx5_videobuf_start_streaming(struct vb2_queue *vq, unsigned int count
 		ipu_cpmem_set_stride(cpmem, xres * 2);
 		ipu_cpmem_set_fmt(cpmem, V4L2_PIX_FMT_RGB565);
 		break;
-
+	default:
 		break;
 	}
 
+	ipu_cpmem_set_fmt(cpmem, mx5_cam->fourcc);
+#if 0
+	mx5_cam->active = list_first_entry(&mx5_cam->capture,
+			   struct mx5_buffer, queue);
+	struct vb2_buffer *vb = &mx5_cam->active->vb;
+	ipu_cpmem_set_buffer(cpmem, 0, vb2_dma_contig_plane_dma_addr(vb, 0));
+#endif
 	ipu_csi_set_window_size(xres, yres, 0);
 	ipu_csi_set_window_pos(0, 0, 0);
 
@@ -310,17 +319,17 @@ static int mx5_videobuf_start_streaming(struct vb2_queue *vq, unsigned int count
 	if (ret)
 		return ret;
 
-	mx5_cam->active = list_first_entry(&mx5_cam->capture,
-			   struct mx5_buffer, queue);
-	struct vb2_buffer *vb = &mx5_cam->active->vb;
-	ipu_cpmem_set_buffer(cpmem, 0, vb2_dma_contig_plane_dma_addr(vb, 0));
-
-	ipu_idmac_set_double_buffer(mx5_cam->ipuch, 0);
-	ipu_idmac_select_buffer(mx5_cam->ipuch, 0);
+	ipu_cpmem_set_burstsize(cpmem, 16);
+	ipu_cpmem_set_high_priority(mx5_cam->ipuch);
+	
+	ipu_idmac_set_double_buffer(mx5_cam->ipuch, 1);
+	ipu_idmac_select_buffer(mx5_cam->ipuch, 1);
 	ipu_idmac_enable_channel(mx5_cam->ipuch);
 	ipu_module_enable(mx5_cam->ipu, IPU_CONF_CSI0_EN);
 	ipu_module_enable(mx5_cam->ipu, IPU_CONF_SMFC_EN);
+//	ic_enable_csi_mode(mx5_cam->ipu);
 
+	ipu_idmac_select_buffer(mx5_cam->ipuch, 0);
 	return 0;
 }
 
@@ -330,9 +339,11 @@ static int mx5_videobuf_stop_streaming(struct vb2_queue *vq)
 	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
 	struct mx5_camera_dev *mx5_cam = ici->priv;
 
-	free_irq(mx5_cam->irq, mx5_cam);
+	free_irq(mx5_cam->irq + ipu_capture_channel, mx5_cam);
+	free_irq(mx5_cam->irq + ipu_capture_channel + IPU_IRQ_NFB4EOF, mx5_cam);
 	ipu_module_disable(mx5_cam->ipu, IPU_CONF_CSI0_EN);
 	ipu_module_disable(mx5_cam->ipu, IPU_CONF_SMFC_EN);
+//	ipu_module_disable(mx5_cam->ipu, IPU_CONF_IC_EN);
 	ipu_idmac_disable_channel(mx5_cam->ipuch);
 
 	return 0;

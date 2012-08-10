@@ -177,8 +177,8 @@ enum {
 
 #define CSI_BUS_FLAGS	(V4L2_MBUS_MASTER | \
 			V4L2_MBUS_HSYNC_ACTIVE_HIGH | \
-			V4L2_MBUS_VSYNC_ACTIVE_LOW | \
-			V4L2_MBUS_PCLK_SAMPLE_RISING | \
+			V4L2_MBUS_VSYNC_ACTIVE_HIGH | \
+			V4L2_MBUS_PCLK_SAMPLE_FALLING | \
 			V4L2_MBUS_DATA_ACTIVE_HIGH )
 
 int ipu_csi_init_interface(uint16_t width, uint16_t height, uint32_t pixel_fmt,
@@ -187,11 +187,10 @@ int ipu_csi_init_interface(uint16_t width, uint16_t height, uint32_t pixel_fmt,
 	uint32_t data_fmt;
 	unsigned long lock_flags;
 	int csi = 0;
-#if 0
-	cfg_param = 0;
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
-
+	cfg_param = 0;
+#if 0
 	cfg_param = readl(CSI_SENS_CONF(csi)) &
 		~((1 << CSI_SENS_CONF_VSYNC_POL_SHIFT) |
 		  (1 << CSI_SENS_CONF_HSYNC_POL_SHIFT) |
@@ -199,30 +198,45 @@ int ipu_csi_init_interface(uint16_t width, uint16_t height, uint32_t pixel_fmt,
 		  (1 << CSI_SENS_CONF_PIX_CLK_POL_SHIFT) |
 		  (3 << CSI_SENS_CONF_DATA_FMT_SHIFT) |
 		  (3 << CSI_SENS_CONF_DATA_WIDTH_SHIFT));
-
-	cfg_param |= CSI_SENS_CONF_DATA_FMT_YUV422_YUYV;
-
+#endif
+	//cfg_param |= CSI_SENS_CONF_DATA_FMT_YUV422_YUYV;
+#if 0
 	if (CSI_BUS_FLAGS & V4L2_MBUS_PCLK_SAMPLE_RISING)
-		cfg_param |= 1 << CSI_SENS_CONF_PIX_CLK_POL_SHIFT;
+		cfg_param |= 1L << CSI_SENS_CONF_PIX_CLK_POL_SHIFT;
 	if (CSI_BUS_FLAGS & V4L2_MBUS_HSYNC_ACTIVE_LOW)
-		cfg_param |= 1 << CSI_SENS_CONF_HSYNC_POL_SHIFT;
+		cfg_param |= 1L << CSI_SENS_CONF_HSYNC_POL_SHIFT;
 	if (CSI_BUS_FLAGS & V4L2_MBUS_VSYNC_ACTIVE_LOW)
-		cfg_param |= 1 << CSI_SENS_CONF_VSYNC_POL_SHIFT;
+		cfg_param |= 1L << CSI_SENS_CONF_VSYNC_POL_SHIFT;
 	if (CSI_BUS_FLAGS & V4L2_MBUS_DATA_ACTIVE_LOW)
-		cfg_param |= 1 << CSI_SENS_CONF_DATA_POL_SHIFT;
+		cfg_param |= 1L << CSI_SENS_CONF_DATA_POL_SHIFT;
+#endif
+	cfg_param |= 1L << CSI_SENS_CONF_DATA_WIDTH_SHIFT;
 
-	cfg_param |= 5 << CSI_SENS_CONF_DATA_WIDTH_SHIFT;
+	cfg_param |= CSI_SENS_CONF_DATA_FMT_YUV422_UYVY << CSI_SENS_CONF_DATA_FMT_SHIFT;
+//	cfg_param |= 0x3 << CSI_SENS_CONF_DATA_FMT_SHIFT;
 
-	cfg_param |= CSI_SENS_CONF_DATA_FMT_YUV422_YUYV << CSI_SENS_CONF_DATA_FMT_SHIFT;
+//	cfg_param |= IPU_CSI_CLK_MODE_GATED_CLK << CSI_SENS_CONF_SENS_PRTCL_SHIFT;
+	cfg_param |= IPU_CSI_CLK_MODE_NONGATED_CLK << CSI_SENS_CONF_SENS_PRTCL_SHIFT;
+	
+//	cfg_param |= IPU_CSI_CLK_MODE_CCIR656_PROGRESSIVE << CSI_SENS_CONF_SENS_PRTCL_SHIFT;
+//	writel(0x1C0013, CSI_CCIR_CODE_1(csi));
+//	writel(0xFF0000, CSI_CCIR_CODE_3(csi));
 
-	cfg_param |= 1 << CSI_SENS_CONF_EXT_VSYNC_SHIFT;
-	cfg_param |= 1 << CSI_SENS_CONF_DATA_EN_POL_SHIFT;
-	cfg_param |= 7 << CSI_SENS_CONF_DIVRATIO_SHIFT;
+	cfg_param |= 1L << CSI_SENS_CONF_EXT_VSYNC_SHIFT;
+	cfg_param |= 1L << CSI_SENS_CONF_HSYNC_POL_SHIFT;
+	cfg_param |= 1L << CSI_SENS_CONF_DATA_EN_POL_SHIFT;
+//	cfg_param |= 7 << CSI_SENS_CONF_DIVRATIO_SHIFT;
+
+//	cfg_param |= 26L << CSI_SENS_CONF_DIVRATIO_SHIFT; // 650 / 24 ~= 27 
+//	cfg_param |= 1L << CSI_SENS_CONF_FORCE_EOF_SHIFT;
+	cfg_param |= CSI_DATA_DEST_IDMAC << CSI_SENS_CONF_DATA_DEST_SHIFT;
+
+	//cfg_param &= ~CSI_SENS_CONF_VSYNC_POL_MASK;
 
 	writel(cfg_param , CSI_SENS_CONF(csi));
 
 	writel((width - 1) | (height - 1) << 16, CSI_SENS_FRM_SIZE(csi));
-#endif
+#if 0
 	uint32_t clk_mode = IPU_CSI_CLK_MODE_NONGATED_CLK;
 
 	cfg_param &= ~CSI_SENS_CONF_DATA_FMT_MASK;
@@ -340,7 +354,36 @@ int ipu_csi_init_interface(uint16_t width, uint16_t height, uint32_t pixel_fmt,
 	writel(cfg_param , CSI_SENS_CONF(csi));
 
 	writel(0x1000000, CSI_TST_CTRL(csi));
+#endif
+#if 0 
+	// TEST MODE ENABLE
+	cfg_param = 0;
 
+	cfg_param |= CSI_SENS_CONF_DATA_FMT_RGB_YUV444 << CSI_SENS_CONF_DATA_FMT_SHIFT;
+
+	cfg_param |= CSI_DATA_DEST_IDMAC << CSI_SENS_CONF_DATA_DEST_SHIFT;
+
+	cfg_param |= 1 << CSI_SENS_CONF_EXT_VSYNC_SHIFT;
+	cfg_param &= ~CSI_SENS_CONF_DATA_WIDTH_MASK;
+	cfg_param |= 0x1 << CSI_SENS_CONF_DATA_WIDTH_SHIFT;
+	cfg_param &= ~CSI_SENS_CONF_PACK_TIGHT_MASK;
+	cfg_param |= 0x0 << CSI_SENS_CONF_PACK_TIGHT_SHIFT;
+	cfg_param &= ~CSI_SENS_CONF_SENS_PRTCL_MASK;
+	cfg_param |= 0x1 << CSI_SENS_CONF_SENS_PRTCL_SHIFT;
+	cfg_param &= ~CSI_SENS_CONF_PIX_CLK_POL_MASK;
+	cfg_param |= 0x1 << CSI_SENS_CONF_PIX_CLK_POL_SHIFT;
+
+	cfg_param &= ~CSI_SENS_CONF_DATA_POL_MASK;
+	cfg_param |= 0x0 << CSI_SENS_CONF_DATA_POL_SHIFT;
+	cfg_param &= ~CSI_SENS_CONF_HSYNC_POL_MASK;
+	cfg_param |= 0x0 << CSI_SENS_CONF_HSYNC_POL_SHIFT;
+	cfg_param &= ~CSI_SENS_CONF_VSYNC_POL_MASK;
+	cfg_param |= 0x0 << CSI_SENS_CONF_VSYNC_POL_SHIFT;
+
+	writel(cfg_param , CSI_SENS_CONF(csi));
+
+	writel(0x1000000, CSI_TST_CTRL(csi));
+#endif
 	dev_dbg(ipu_dev, "CSI_SENS_CONF = 0x%08X\n",
 		readl(CSI_SENS_CONF(csi)));
 	dev_dbg(ipu_dev, "CSI_SENS_FRM_SIZE = 0x%08X\n",
@@ -353,6 +396,20 @@ int ipu_csi_init_interface(uint16_t width, uint16_t height, uint32_t pixel_fmt,
 		readl(CSI_CPD_CTRL(csi)));
 	dev_dbg(ipu_dev, "IPU_CONF = 0x%08X\n",
 		readl(ipu->cm_reg + IPU_CONF));
+	dev_dbg(ipu_dev, "CSI_CCIR_CODE_1 = 0x%08X\n",
+		readl(CSI_CCIR_CODE_1(csi)));
+	dev_dbg(ipu_dev, "CSI_CCIR_CODE_2 = 0x%08X\n",
+		readl(CSI_CCIR_CODE_2(csi)));
+	dev_dbg(ipu_dev, "CSI_CCIR_CODE_3 = 0x%08X\n",
+		readl(CSI_CCIR_CODE_3(csi)));
+	dev_dbg(ipu_dev, "CSI_CPD_CTRL = 0x%08X\n",
+		readl(CSI_CPD_CTRL(csi)));
+	dev_dbg(ipu_dev, "SMFC_MAP = 0x%08X\n",
+		readl(SMFC_MAP));
+	dev_dbg(ipu_dev, "SMFC_BS = 0x%08X\n",
+		readl(SMFC_BS));
+	dev_dbg(ipu_dev, "SMFC_WMC = 0x%08X\n",
+		readl(SMFC_WMC));
 
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
 

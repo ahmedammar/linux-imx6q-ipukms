@@ -97,7 +97,7 @@ static int ksz9021rn_phy_fixup(struct phy_device *phydev)
 
 static void __init imx6q_sabrelite_cko1_setup(void)
 {
-	struct clk *cko1_sel, *cko2_sel, *ahb, *cko1, *cko2;
+	struct clk *cko1_sel, *cko2_sel, *ahb, *cko1, *osc, *cko2;
 	unsigned long rate;
 
 	cko1_sel = clk_get_sys(NULL, "cko1_sel");
@@ -113,14 +113,13 @@ static void __init imx6q_sabrelite_cko1_setup(void)
 	clk_register_clkdev(cko1, NULL, "0-000a");
 
 	cko2_sel = clk_get_sys(NULL, "cko2_sel");
+	osc = clk_get_sys(NULL, "osc");
 	cko2 = clk_get_sys(NULL, "cko2");
 	if (IS_ERR(cko2_sel) || IS_ERR(ahb) || IS_ERR(cko2)) {
 		pr_err("cko2 setup failed!\n");
 		goto put_clk;
 	}
-	clk_set_parent(cko2_sel, ahb);
-	rate = clk_round_rate(cko2, 24000000);
-	clk_set_rate(cko2, rate);
+	clk_set_parent(cko2_sel, osc);
 	clk_register_clkdev(cko2, NULL, "1-003c");
 
 put_clk:
@@ -130,6 +129,8 @@ put_clk:
 		clk_put(ahb);
 	if (!IS_ERR(cko1))
 		clk_put(cko1);
+	if (!IS_ERR(osc))
+		clk_put(osc);
 	if (!IS_ERR(cko2_sel))
 		clk_put(cko2_sel);
 	if (!IS_ERR(cko2))
@@ -185,7 +186,6 @@ static void __init imx6q_init_machine(void)
 
 	of_platform_populate(NULL, of_default_bus_match_table,
                                                 imx6q_auxdata_lookup, NULL);
-
 	imx6q_pm_init();
 }
 

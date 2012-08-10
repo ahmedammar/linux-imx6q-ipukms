@@ -557,6 +557,20 @@ static int __devinit imx_pinctrl_probe_dt(struct platform_device *pdev,
 	return 0;
 }
 
+void mxc_iomux_set_gpr_register(struct imx_pinctrl *ipctl, int group, int start_bit, int num_bits, int value)
+{
+	int i = 0;
+	u32 reg;
+	reg = readl(ipctl->base + group * 4);
+	while (num_bits) {
+		reg &= ~(1<<(start_bit + i));
+		i++;
+		num_bits--;
+	}
+	reg |= (value << start_bit);
+	writel(reg, ipctl->base + group * 4);
+}
+
 int __devinit imx_pinctrl_probe(struct platform_device *pdev,
 				struct imx_pinctrl_soc_info *info)
 {
@@ -604,6 +618,20 @@ int __devinit imx_pinctrl_probe(struct platform_device *pdev,
 	}
 
 	dev_info(&pdev->dev, "initialized IMX pinctrl driver\n");
+
+	/* For MX6Q GPR1 bit19 and bit20 meaning:
+	 * Bit19:       0 - Enable mipi to IPU1 CSI0
+	 *                      virtual channel is fixed to 0
+	 *              1 - Enable parallel interface to IPU1 CSI0
+	 * Bit20:       0 - Enable mipi to IPU2 CSI1
+	 *                      virtual channel is fixed to 3
+	 *              1 - Enable parallel interface to IPU2 CSI1
+	 * IPU1 CSI1 directly connect to mipi csi2,
+	 *      virtual channel is fixed to 1
+	 * IPU2 CSI0 directly connect to mipi csi2,
+	 *      virtual channel is fixed to 2
+	 */
+	mxc_iomux_set_gpr_register(ipctl, 1, 19, 1, 1);
 
 	return 0;
 }

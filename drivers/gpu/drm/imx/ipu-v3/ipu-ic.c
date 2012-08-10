@@ -211,6 +211,15 @@ void ipu_ic_exit(struct ipu_soc *ipu)
 {
 }
 
+void ic_enable_csi_mode(struct ipu_soc *ipu)
+{
+	uint32_t ipu_ic_conf = ipu_ic_read(ipu, IC_CONF);
+	ipu_ic_conf |= IC_CONF_CSI_MEM_WR_EN;
+	ipu_ic_write(ipu, ipu_ic_conf, IC_CONF);
+
+	ipu_module_enable(ipu, IPU_CONF_IC_EN);
+}
+
 int  colorspace_conversion_task(struct drm_device *drm, struct ipu_soc *ipu, struct drm_imx_ipu_queue *args)
 {
 	struct ipu_ic_resource *res;
