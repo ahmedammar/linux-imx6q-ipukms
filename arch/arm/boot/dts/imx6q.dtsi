@@ -541,8 +541,8 @@
 
 				serial2 {
 					pinctrl_serial2_1: serial2grp-1 {
-						fsl,pins = <1494 0x1b0b1		/* MX6Q_PAD_SD4_DAT4__UART2_RXD */
-							    1518 0x1b0b1>;		/* MX6Q_PAD_SD4_DAT7__UART2_TXD */
+						fsl,pins = <183 0x1b0b1		/* MX6Q_PAD_EIM_D26__UART2_TXD */
+							    191 0x1b0b1>;		/* MX6Q_PAD_EIM_D27__UART2_RXD */
 					};
 				};
 
